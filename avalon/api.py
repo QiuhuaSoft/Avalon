@@ -13,11 +13,13 @@ from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 
 from .bot.manager import BotManager
+from .bot.prompts import build_action_instructions, build_context, build_system_prompt
 from .config import SETTINGS
 from .game import GameEngine
 from .models import (
     ActionRequest,
     CreateGameRequest,
+    Phase,
     PlayerAddRequest,
     PlayerJoinRequest,
     PlayerReadyRequest,
@@ -156,6 +158,65 @@ async def get_host_token(request: Request) -> Dict:
 @app.get("/game/events")
 async def get_events() -> Dict:
     return {"events": store.list_events()}
+
+
+@app.get("/game/pending_bots")
+async def pending_bots(request: Request) -> Dict:
+    if request.client and request.client.host not in ("127.0.0.1", "::1"):
+        return JSONResponse(status_code=403, content={"error": "localhost only"})
+    if not engine.has_state():
+        return {"pending_bots": [], "phase": None, "game_over": False, "winner": None}
+    state = engine.state
+    _, bot_pending = engine.pending_actions()
+    return {
+        "pending_bots": bot_pending,
+        "phase": state.phase.value,
+        "game_over": state.phase == Phase.game_over,
+        "winner": state.winner.value if state.winner else None,
+    }
+
+
+@app.get("/game/bot_context/{bot_id}")
+async def bot_context(bot_id: str, request: Request) -> Dict:
+    if request.client and request.client.host not in ("127.0.0.1", "::1"):
+        return JSONResponse(status_code=403, content={"error": "localhost only"})
+    if SETTINGS.bot_mode != "external":
+        return JSONResponse(status_code=400, content={"error": "external bot mode not enabled"})
+    if not engine.has_state():
+        return JSONResponse(status_code=400, content={"error": "no active game"})
+    state = engine.state
+    player = next((p for p in state.players if p.id == bot_id), None)
+    if not player:
+        return JSONResponse(status_code=404, content={"error": "unknown player"})
+    if not player.is_bot:
+        return JSONResponse(status_code=400, content={"error": "not a bot"})
+    _, bot_pending = engine.pending_actions()
+    if bot_id not in bot_pending:
+        return JSONResponse(status_code=400, content={"error": "no pending action for this bot"})
+
+    knowledge = engine.knowledge_for(bot_id)
+    id_to_name = {p.id: p.name for p in state.players}
+    recent_chat = [
+        f"{id_to_name.get(msg.player_id, msg.player_id)}: {msg.message}"
+        for msg in state.chat[-SETTINGS.max_recent_chat:]
+    ]
+    system = build_system_prompt(player, knowledge)
+    context = build_context(state, bot_id, recent_chat)
+    instructions = build_action_instructions(state, player)
+    full_prompt = f"{system}\n\n{context}\n\n{instructions}"
+
+    player_names = [p.name for p in state.players]
+    name_to_id = {p.name: p.id for p in state.players}
+
+    return {
+        "bot_id": bot_id,
+        "bot_name": player.name,
+        "role": player.role.value if player.role else None,
+        "phase": state.phase.value,
+        "full_prompt": full_prompt,
+        "player_names": player_names,
+        "name_to_id": name_to_id,
+    }
 
 
 @app.post("/game/players/add")

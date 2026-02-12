@@ -3,6 +3,7 @@ from __future__ import annotations
 import asyncio
 from typing import List
 
+from ..config import SETTINGS
 from ..game import GameEngine
 from ..models import Phase
 from .policy import BotPolicy
@@ -14,6 +15,8 @@ class BotManager:
         self.policy = BotPolicy()
 
     async def maybe_act(self) -> None:
+        if SETTINGS.bot_mode == "external":
+            return
         for _ in range(20):
             human_pending, bot_pending = self.engine.pending_actions()
             if human_pending or not bot_pending:
