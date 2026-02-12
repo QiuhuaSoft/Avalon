@@ -10,3 +10,6 @@ cloudflared
 
 # Model cache
 models/
+
+# Reference dataset
+Avalon-NLU/
