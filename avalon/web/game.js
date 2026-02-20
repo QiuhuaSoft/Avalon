@@ -22,10 +22,17 @@ const actionPanelEl = $("actionPanel");
 const privateIntelEl = $("privateIntel");
 const botStatusEl = $("botStatus");
 const actionHintEl = $("actionHint");
+const proposalLeaderEl = $("proposalLeader");
+const proposalHammerEl = $("proposalHammer");
+const proposalTeamEl = $("proposalTeam");
+const proposalHistoryEl = $("proposalHistory");
 
 let lastChatCount = 0;
 let cachedState = null;
 let cachedPrivate = null;
+let cachedEvents = [];
+let teamDraftKey = "";
+let teamDraft = [];
 
 if (!playerId && !playerToken) {
   roleRevealEl.textContent = "Pick a seat first.";
@@ -80,6 +87,209 @@ function renderRoleReveal(privateState) {
   roleRevealEl.textContent = `You are ${privateState.role}. Alignment: ${privateState.alignment}.`;
 }
 
+function playerName(state, playerId) {
+  if (!state || !state.players) return playerId;
+  const player = state.players.find((entry) => entry.id === playerId);
+  return player ? player.name : playerId;
+}
+
+function hammerText(state) {
+  if (!state || !state.config || !state.config.hammer_auto_approve) {
+    return "Disabled";
+  }
+  const attempt = Math.min(5, (state.proposal_attempts || 0) + 1);
+  const rejections = Math.min(4, state.proposal_attempts || 0);
+  if (attempt >= 5) {
+    return `Proposal 5/5 (HAMMER) - auto-approve`;
+  }
+  return `Proposal ${attempt}/5 - ${rejections}/4 rejections`;
+}
+
+function renderProposalTracker(state) {
+  if (!state) {
+    proposalLeaderEl.textContent = "—";
+    proposalHammerEl.textContent = "—";
+    proposalTeamEl.textContent = "No proposed team yet.";
+    return;
+  }
+
+  const leader = state.players[state.leader_index];
+  proposalLeaderEl.textContent = leader ? leader.name : "—";
+  proposalHammerEl.textContent = hammerText(state);
+
+  if (state.proposed_team && state.proposed_team.length) {
+    const teamNames = state.proposed_team.map((id) => playerName(state, id)).join(", ");
+    proposalTeamEl.textContent = `Team: ${teamNames}`;
+    return;
+  }
+
+  if (state.phase === "team_proposal" && leader) {
+    proposalTeamEl.textContent = `Waiting for ${leader.name} to propose a team.`;
+    return;
+  }
+  proposalTeamEl.textContent = "No proposed team yet.";
+}
+
+function buildProposalRecords(events = []) {
+  let quest = 1;
+  let attempt = 1;
+  let current = null;
+  const records = [];
+
+  events.forEach((event) => {
+    if (!event || !event.type) return;
+
+    if (event.type === "game_created" || event.type === "game_started") {
+      quest = 1;
+      attempt = 1;
+      current = null;
+      if (event.type === "game_created") {
+        records.length = 0;
+      }
+      return;
+    }
+
+    if (event.type === "team_proposed") {
+      current = {
+        quest,
+        attempt,
+        leaderId: event.payload?.leader_id || null,
+        team: Array.isArray(event.payload?.team) ? [...event.payload.team] : [],
+        votes: {},
+        approvals: null,
+        rejects: null,
+        hammered: false,
+        result: "pending",
+      };
+      records.push(current);
+      return;
+    }
+
+    if (event.type === "team_vote" && current) {
+      current.votes[event.payload?.player_id] = !!event.payload?.approve;
+      return;
+    }
+
+    if (event.type === "team_hammered" && current) {
+      current.hammered = true;
+      current.result = "approved";
+      current.approvals = null;
+      current.rejects = null;
+      attempt = 1;
+      return;
+    }
+
+    if (event.type === "team_approved" && current) {
+      current.result = "approved";
+      current.approvals = event.payload?.approvals;
+      current.rejects = event.payload?.rejects;
+      attempt = 1;
+      return;
+    }
+
+    if (event.type === "team_rejected" && current) {
+      current.result = "rejected";
+      current.approvals = event.payload?.approvals;
+      current.rejects = event.payload?.rejects;
+      attempt += 1;
+      return;
+    }
+
+    if (event.type === "quest_resolved") {
+      quest += 1;
+      attempt = 1;
+      current = null;
+    }
+  });
+
+  return records;
+}
+
+function renderProposalHistory(state, events) {
+  if (!proposalHistoryEl) return;
+  if (!state) {
+    proposalHistoryEl.innerHTML = "<p class=\"hint\">No active game.</p>";
+    return;
+  }
+
+  const records = buildProposalRecords(events);
+  if (!records.length) {
+    proposalHistoryEl.innerHTML = "<p class=\"hint\">No team proposals yet.</p>";
+    return;
+  }
+
+  proposalHistoryEl.innerHTML = "";
+  const playerOrder = state.players.map((entry) => entry.id);
+  const newestFirst = [...records].reverse();
+
+  newestFirst.forEach((record, idx) => {
+    const details = document.createElement("details");
+    details.className = "proposal-record";
+    details.open = idx === 0;
+
+    const summary = document.createElement("summary");
+    const left = document.createElement("span");
+    left.textContent = `Q${record.quest} • Proposal ${record.attempt} • ${playerName(state, record.leaderId)}`;
+    const right = document.createElement("span");
+    right.className = `record-result ${record.result}`;
+    if (record.result === "approved") {
+      right.textContent = record.hammered ? "HAMMERED" : "APPROVED";
+    } else if (record.result === "rejected") {
+      right.textContent = "REJECTED";
+    } else {
+      right.textContent = "PENDING";
+    }
+    summary.appendChild(left);
+    summary.appendChild(right);
+    details.appendChild(summary);
+
+    const body = document.createElement("div");
+    body.className = "proposal-record-body";
+
+    const teamLine = document.createElement("div");
+    teamLine.className = "proposal-meta";
+    const teamText = record.team.length
+      ? record.team.map((id) => playerName(state, id)).join(", ")
+      : "—";
+    teamLine.textContent = `Team: ${teamText}`;
+    body.appendChild(teamLine);
+
+    const tallyLine = document.createElement("div");
+    tallyLine.className = "proposal-meta";
+    if (typeof record.approvals === "number" && typeof record.rejects === "number") {
+      tallyLine.textContent = `Tally: ${record.approvals}Y / ${record.rejects}N`;
+    } else if (record.hammered) {
+      tallyLine.textContent = "Tally: hammer auto-approved";
+    } else {
+      tallyLine.textContent = "Tally: voting in progress";
+    }
+    body.appendChild(tallyLine);
+
+    const votes = document.createElement("div");
+    votes.className = "vote-grid";
+    playerOrder.forEach((pid) => {
+      const chip = document.createElement("div");
+      const vote = record.votes[pid];
+      chip.className = "vote-chip";
+      const name = playerName(state, pid);
+      if (vote === true) {
+        chip.classList.add("yes");
+        chip.textContent = `${name}: Y`;
+      } else if (vote === false) {
+        chip.classList.add("no");
+        chip.textContent = `${name}: N`;
+      } else {
+        chip.textContent = `${name}: -`;
+      }
+      votes.appendChild(chip);
+    });
+    body.appendChild(votes);
+
+    details.appendChild(body);
+    proposalHistoryEl.appendChild(details);
+  });
+}
+
 function renderActionMenu(state, privateState) {
   actionPanelEl.innerHTML = "";
   if (!state) {
@@ -95,6 +305,10 @@ function renderActionMenu(state, privateState) {
 
   const phase = state.phase;
   const leader = state.players[state.leader_index];
+  if (phase !== "team_proposal" || leader.id !== playerId) {
+    teamDraftKey = "";
+    teamDraft = [];
+  }
 
   const addButton = (label, handler, ghost = false) => {
     const btn = document.createElement("button");
@@ -112,6 +326,12 @@ function renderActionMenu(state, privateState) {
   };
 
   const addTeamPicker = (size) => {
+    const draftKey = `${state.id}:${state.quest_number}:${state.proposal_attempts}:${leader.id}:${size}`;
+    if (teamDraftKey !== draftKey) {
+      teamDraftKey = draftKey;
+      teamDraft = [];
+    }
+
     const selector = document.createElement("div");
     selector.className = "stack";
     const info = document.createElement("p");
@@ -121,6 +341,7 @@ function renderActionMenu(state, privateState) {
 
     const selects = [];
     const playerIds = state.players.map((p) => p.id);
+    const used = new Set();
     for (let i = 0; i < size; i += 1) {
       const select = document.createElement("select");
       state.players.forEach((p) => {
@@ -129,13 +350,25 @@ function renderActionMenu(state, privateState) {
         opt.textContent = p.name;
         select.appendChild(opt);
       });
-      const defaultId = playerIds[i % playerIds.length];
+
+      const draftedId = teamDraft[i];
+      let defaultId = "";
+      if (draftedId && playerIds.includes(draftedId) && !used.has(draftedId)) {
+        defaultId = draftedId;
+      } else {
+        defaultId = playerIds.find((id) => !used.has(id)) || playerIds[0] || "";
+      }
       if (defaultId) {
         select.value = defaultId;
+        used.add(defaultId);
       }
       selects.push(select);
       selector.appendChild(select);
     }
+
+    const syncDraft = () => {
+      teamDraft = selects.map((s) => s.value);
+    };
 
     const syncSelections = () => {
       const chosen = new Set(selects.map((s) => s.value));
@@ -149,7 +382,13 @@ function renderActionMenu(state, privateState) {
         });
       });
     };
-    selects.forEach((select) => select.addEventListener("change", syncSelections));
+    selects.forEach((select) => {
+      select.addEventListener("change", () => {
+        syncDraft();
+        syncSelections();
+      });
+    });
+    syncDraft();
     syncSelections();
 
     addButton("Submit team", async () => {
@@ -271,20 +510,23 @@ $("sendChat").addEventListener("click", async () => {
 
 async function refresh() {
   try {
-    actionHintEl.textContent = "";
     if (playerToken) {
       localStorage.setItem("avalon_player_token", playerToken);
     }
-    const [publicState, privateState] = await Promise.all([
+    const [publicState, privateState, eventsPayload] = await Promise.all([
       api("/game/state"),
       playerToken
         ? api(`/game/state?token=${playerToken}`)
         : playerId
           ? api(`/game/state?player_id=${playerId}`)
           : Promise.resolve(null),
+      api("/game/events").catch(() => ({ events: cachedEvents })),
     ]);
     cachedState = publicState.state;
     cachedPrivate = privateState;
+    if (eventsPayload && Array.isArray(eventsPayload.events)) {
+      cachedEvents = eventsPayload.events;
+    }
     const pending = privateState?.pending || publicState?.pending || null;
     if (cachedPrivate?.player_id) {
       playerId = cachedPrivate.player_id;
@@ -293,6 +535,8 @@ async function refresh() {
 
     if (!cachedState) {
       roleRevealEl.textContent = "Waiting for host to create a game.";
+      renderProposalTracker(null);
+      renderProposalHistory(null, []);
       return;
     }
 
@@ -307,6 +551,8 @@ async function refresh() {
       const player = cachedState.players.find((p) => p.id === playerId);
       playerNameEl.textContent = player ? player.name : "Player";
       renderChat(cachedState.chat || [], cachedState.players || []);
+      renderProposalTracker(cachedState);
+      renderProposalHistory(cachedState, cachedEvents);
     }
     if (cachedPrivate) {
       renderRoleReveal(cachedPrivate);

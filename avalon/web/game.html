@@ -28,12 +28,33 @@
         </div>
 
         <div class="panel span">
+          <h2>Proposal Tracker</h2>
+          <div class="proposal-overview">
+            <div class="proposal-stat">
+              <div class="status-label">Current Proposer</div>
+              <div class="status-value" id="proposalLeader">—</div>
+            </div>
+            <div class="proposal-stat">
+              <div class="status-label">Hammer</div>
+              <div class="status-value" id="proposalHammer">—</div>
+            </div>
+          </div>
+          <div class="card proposal-team" id="proposalTeam">No proposed team yet.</div>
+        </div>
+
+        <div class="panel span">
           <h2>Chat</h2>
           <div class="chat" id="chatLog"></div>
           <div class="inline">
             <input id="chatMessage" placeholder="Say something to the table" />
             <button id="sendChat">Send</button>
           </div>
+        </div>
+
+        <div class="panel span">
+          <h2>Proposal Record</h2>
+          <p class="hint">Click any proposal to expand and see all Y/N votes.</p>
+          <div id="proposalHistory" class="proposal-history"></div>
         </div>
 
         <div class="panel">

@@ -323,6 +323,110 @@ pre {
   border-radius: 10px;
 }
 
+.proposal-overview {
+  display: grid;
+  gap: 12px;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  margin-bottom: 12px;
+}
+
+.proposal-stat {
+  background: #fff;
+  border-radius: 12px;
+  border: var(--border);
+  padding: 10px 12px;
+}
+
+.proposal-stat .status-value {
+  margin-bottom: 0;
+}
+
+.proposal-team {
+  min-height: 64px;
+}
+
+.proposal-history {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.proposal-record {
+  border: var(--border);
+  border-radius: 12px;
+  background: #fff;
+  overflow: hidden;
+}
+
+.proposal-record summary {
+  list-style: none;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 12px;
+  font-weight: 600;
+}
+
+.proposal-record summary::-webkit-details-marker {
+  display: none;
+}
+
+.proposal-meta {
+  color: var(--muted);
+  font-weight: 500;
+}
+
+.record-result {
+  font-size: 0.82rem;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+
+.record-result.approved {
+  color: #2a7f62;
+}
+
+.record-result.rejected {
+  color: #b03a3a;
+}
+
+.record-result.pending {
+  color: #8d7a2a;
+}
+
+.proposal-record-body {
+  border-top: var(--border);
+  padding: 0 12px 12px;
+  display: grid;
+  gap: 10px;
+}
+
+.vote-grid {
+  display: grid;
+  gap: 8px;
+  grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+}
+
+.vote-chip {
+  border-radius: 10px;
+  border: var(--border);
+  padding: 8px 10px;
+  font-size: 0.88rem;
+  background: var(--panel-2);
+}
+
+.vote-chip.yes {
+  border-color: rgba(44, 127, 122, 0.45);
+  background: rgba(44, 127, 122, 0.1);
+}
+
+.vote-chip.no {
+  border-color: rgba(176, 58, 58, 0.45);
+  background: rgba(176, 58, 58, 0.1);
+}
+
 .stack {
   display: flex;
   flex-direction: column;
