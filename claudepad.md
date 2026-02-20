@@ -20,6 +20,9 @@
 - Sonnet sub-agents work well for game decisions (fast, cheap). Opus used for assassination (needs deeper reasoning).
 - Loyal players' quest votes can be submitted directly (engine enforces SUCCESS).
 
+### Orchestration Rules
+- During assassination phase, only evil players (Assassin + Minion) can chat. Good players stay silent.
+
 ### Game Loop Observations
 - Sub-agents respond in correct SAY/VOTE format reliably
 - Evil bots make strategic decisions (Dave chose SUCCESS on Quest 2 to maintain cover)

@@ -180,6 +180,8 @@ class GameEngine:
                 message = payload.get("message", "")
                 if not message:
                     raise ValueError("Message required")
+                if state.phase == Phase.assassination and player.role not in EVIL_ROLES:
+                    raise ValueError("Only evil players may chat during assassination")
                 state.chat.append(ChatMessage(player_id=player_id, message=message))
                 self._emit("chat", {"player_id": player_id, "message": message})
                 return state
