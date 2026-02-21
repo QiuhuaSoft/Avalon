@@ -25,7 +25,9 @@ const actionHintEl = $("actionHint");
 const proposalLeaderEl = $("proposalLeader");
 const proposalHammerEl = $("proposalHammer");
 const proposalTeamEl = $("proposalTeam");
-const proposalHistoryEl = $("proposalHistory");
+const proposalMatrixHeadEl = $("proposalMatrixHead");
+const proposalMatrixBodyEl = $("proposalMatrixBody");
+const proposalMatrixEmptyEl = $("proposalMatrixEmpty");
 
 let lastChatCount = 0;
 let cachedState = null;
@@ -134,6 +136,8 @@ function buildProposalRecords(events = []) {
   let quest = 1;
   let attempt = 1;
   let current = null;
+  let activeMissionRecord = null;
+  let serial = 0;
   const records = [];
 
   events.forEach((event) => {
@@ -143,6 +147,8 @@ function buildProposalRecords(events = []) {
       quest = 1;
       attempt = 1;
       current = null;
+      activeMissionRecord = null;
+      serial = 0;
       if (event.type === "game_created") {
         records.length = 0;
       }
@@ -150,7 +156,9 @@ function buildProposalRecords(events = []) {
     }
 
     if (event.type === "team_proposed") {
+      serial += 1;
       current = {
+        id: `proposal-${serial}`,
         quest,
         attempt,
         leaderId: event.payload?.leader_id || null,
@@ -160,6 +168,9 @@ function buildProposalRecords(events = []) {
         rejects: null,
         hammered: false,
         result: "pending",
+        missionResolved: false,
+        missionSucceeded: null,
+        missionFails: null,
       };
       records.push(current);
       return;
@@ -175,6 +186,7 @@ function buildProposalRecords(events = []) {
       current.result = "approved";
       current.approvals = null;
       current.rejects = null;
+      activeMissionRecord = current;
       attempt = 1;
       return;
     }
@@ -183,6 +195,7 @@ function buildProposalRecords(events = []) {
       current.result = "approved";
       current.approvals = event.payload?.approvals;
       current.rejects = event.payload?.rejects;
+      activeMissionRecord = current;
       attempt = 1;
       return;
     }
@@ -191,102 +204,137 @@ function buildProposalRecords(events = []) {
       current.result = "rejected";
       current.approvals = event.payload?.approvals;
       current.rejects = event.payload?.rejects;
+      activeMissionRecord = null;
       attempt += 1;
       return;
     }
 
     if (event.type === "quest_resolved") {
+      const resolvedRecord = activeMissionRecord || [...records].reverse().find((entry) => (
+        entry.result === "approved" && !entry.missionResolved
+      ));
+      if (resolvedRecord) {
+        resolvedRecord.missionResolved = true;
+        resolvedRecord.missionSucceeded = !!event.payload?.succeeded;
+        resolvedRecord.missionFails = Number.isInteger(event.payload?.fails)
+          ? event.payload.fails
+          : null;
+      }
       quest += 1;
       attempt = 1;
       current = null;
+      activeMissionRecord = null;
     }
   });
 
   return records;
 }
 
-function renderProposalHistory(state, events) {
-  if (!proposalHistoryEl) return;
+function missionSummary(record) {
+  if (record.result === "rejected") {
+    return { text: "Not run", cls: "mission-muted" };
+  }
+  if (record.result === "pending") {
+    return { text: "Pending vote", cls: "mission-pending" };
+  }
+  if (!record.missionResolved) {
+    return { text: "In progress", cls: "mission-pending" };
+  }
+  const fails = Number.isInteger(record.missionFails) ? record.missionFails : 0;
+  const passes = Math.max(0, (record.team?.length || 0) - fails);
+  if (record.missionSucceeded) {
+    return { text: `PASS (${passes}P/${fails}F)`, cls: "mission-pass" };
+  }
+  return { text: `FAIL (${passes}P/${fails}F)`, cls: "mission-fail" };
+}
+
+function renderProposalMatrix(state, events) {
+  if (!proposalMatrixHeadEl || !proposalMatrixBodyEl || !proposalMatrixEmptyEl) return;
   if (!state) {
-    proposalHistoryEl.innerHTML = "<p class=\"hint\">No active game.</p>";
+    proposalMatrixHeadEl.innerHTML = "";
+    proposalMatrixBodyEl.innerHTML = "";
+    proposalMatrixEmptyEl.classList.remove("hidden");
+    proposalMatrixEmptyEl.textContent = "No active game.";
     return;
   }
 
   const records = buildProposalRecords(events);
+  const playerOrder = state.players.map((entry) => entry.id);
+  const playerIndex = Object.fromEntries(playerOrder.map((pid, idx) => [pid, idx]));
+
+  proposalMatrixHeadEl.innerHTML = "";
+  proposalMatrixBodyEl.innerHTML = "";
+
+  const headRow = document.createElement("tr");
+  [
+    "Quest",
+    "Prop",
+    "Leader",
+    "Team",
+    "Tally",
+    ...playerOrder.map((pid, idx) => `${idx + 1}: ${playerName(state, pid)}`),
+    "Mission",
+  ]
+    .forEach((label) => {
+      const th = document.createElement("th");
+      th.textContent = label;
+      headRow.appendChild(th);
+    });
+  proposalMatrixHeadEl.appendChild(headRow);
+
   if (!records.length) {
-    proposalHistoryEl.innerHTML = "<p class=\"hint\">No team proposals yet.</p>";
+    proposalMatrixEmptyEl.classList.remove("hidden");
+    proposalMatrixEmptyEl.textContent = "No team proposals yet.";
     return;
   }
 
-  proposalHistoryEl.innerHTML = "";
-  const playerOrder = state.players.map((entry) => entry.id);
-  const newestFirst = [...records].reverse();
+  proposalMatrixEmptyEl.classList.add("hidden");
 
-  newestFirst.forEach((record, idx) => {
-    const details = document.createElement("details");
-    details.className = "proposal-record";
-    details.open = idx === 0;
+  records.forEach((record) => {
+    const tr = document.createElement("tr");
+    tr.className = `proposal-row ${record.result}`;
 
-    const summary = document.createElement("summary");
-    const left = document.createElement("span");
-    left.textContent = `Q${record.quest} • Proposal ${record.attempt} • ${playerName(state, record.leaderId)}`;
-    const right = document.createElement("span");
-    right.className = `record-result ${record.result}`;
-    if (record.result === "approved") {
-      right.textContent = record.hammered ? "HAMMERED" : "APPROVED";
-    } else if (record.result === "rejected") {
-      right.textContent = "REJECTED";
-    } else {
-      right.textContent = "PENDING";
-    }
-    summary.appendChild(left);
-    summary.appendChild(right);
-    details.appendChild(summary);
+    const appendCell = (text, cls = "") => {
+      const td = document.createElement("td");
+      if (cls) td.className = cls;
+      td.textContent = text;
+      tr.appendChild(td);
+    };
 
-    const body = document.createElement("div");
-    body.className = "proposal-record-body";
-
-    const teamLine = document.createElement("div");
-    teamLine.className = "proposal-meta";
-    const teamText = record.team.length
-      ? record.team.map((id) => playerName(state, id)).join(", ")
-      : "—";
-    teamLine.textContent = `Team: ${teamText}`;
-    body.appendChild(teamLine);
-
-    const tallyLine = document.createElement("div");
-    tallyLine.className = "proposal-meta";
-    if (typeof record.approvals === "number" && typeof record.rejects === "number") {
-      tallyLine.textContent = `Tally: ${record.approvals}Y / ${record.rejects}N`;
-    } else if (record.hammered) {
-      tallyLine.textContent = "Tally: hammer auto-approved";
-    } else {
-      tallyLine.textContent = "Tally: voting in progress";
-    }
-    body.appendChild(tallyLine);
-
-    const votes = document.createElement("div");
-    votes.className = "vote-grid";
-    playerOrder.forEach((pid) => {
-      const chip = document.createElement("div");
-      const vote = record.votes[pid];
-      chip.className = "vote-chip";
-      const name = playerName(state, pid);
-      if (vote === true) {
-        chip.classList.add("yes");
-        chip.textContent = `${name}: Y`;
-      } else if (vote === false) {
-        chip.classList.add("no");
-        chip.textContent = `${name}: N`;
-      } else {
-        chip.textContent = `${name}: -`;
-      }
-      votes.appendChild(chip);
+    appendCell(String(record.quest));
+    appendCell(String(record.attempt));
+    appendCell(`👑 ${playerName(state, record.leaderId)}`, "leader-cell");
+    const orderedTeam = [...record.team].sort((a, b) => {
+      const ai = Number.isInteger(playerIndex[a]) ? playerIndex[a] : 999;
+      const bi = Number.isInteger(playerIndex[b]) ? playerIndex[b] : 999;
+      return ai - bi;
     });
-    body.appendChild(votes);
+    appendCell(orderedTeam.map((id) => playerName(state, id)).join(", "), "team-cell");
 
-    details.appendChild(body);
-    proposalHistoryEl.appendChild(details);
+    if (typeof record.approvals === "number" && typeof record.rejects === "number") {
+      appendCell(`${record.approvals}Y / ${record.rejects}N`);
+    } else if (record.hammered) {
+      appendCell("Hammer");
+    } else {
+      appendCell("Pending");
+    }
+
+    playerOrder.forEach((pid) => {
+      const vote = record.votes[pid];
+      const isProposer = pid === record.leaderId;
+      const proposerMark = isProposer ? "👑 " : "";
+      if (vote === true) {
+        appendCell(`${proposerMark}Y`, `vote-yes${isProposer ? " proposer-vote" : ""}`);
+      } else if (vote === false) {
+        appendCell(`${proposerMark}N`, `vote-no${isProposer ? " proposer-vote" : ""}`);
+      } else {
+        appendCell(`${proposerMark}-`, `vote-none${isProposer ? " proposer-vote" : ""}`);
+      }
+    });
+
+    const mission = missionSummary(record);
+    appendCell(mission.text, mission.cls);
+    proposalMatrixBodyEl.appendChild(tr);
   });
 }
 
@@ -536,7 +584,7 @@ async function refresh() {
     if (!cachedState) {
       roleRevealEl.textContent = "Waiting for host to create a game.";
       renderProposalTracker(null);
-      renderProposalHistory(null, []);
+      renderProposalMatrix(null, []);
       return;
     }
 
@@ -552,7 +600,7 @@ async function refresh() {
       playerNameEl.textContent = player ? player.name : "Player";
       renderChat(cachedState.chat || [], cachedState.players || []);
       renderProposalTracker(cachedState);
-      renderProposalHistory(cachedState, cachedEvents);
+      renderProposalMatrix(cachedState, cachedEvents);
     }
     if (cachedPrivate) {
       renderRoleReveal(cachedPrivate);

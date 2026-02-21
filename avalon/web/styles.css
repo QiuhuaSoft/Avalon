@@ -323,108 +323,148 @@ pre {
   border-radius: 10px;
 }
 
-.proposal-overview {
-  display: grid;
-  gap: 12px;
-  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-  margin-bottom: 12px;
+.tracker-matrix-wrap {
+  overflow-x: auto;
 }
 
-.proposal-stat {
-  background: #fff;
-  border-radius: 12px;
-  border: var(--border);
-  padding: 10px 12px;
-}
-
-.proposal-stat .status-value {
-  margin-bottom: 0;
-}
-
-.proposal-team {
-  min-height: 64px;
-}
-
-.proposal-history {
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-}
-
-.proposal-record {
+.tracker-matrix {
+  width: 100%;
+  min-width: 620px;
+  border-collapse: separate;
+  border-spacing: 0;
   border: var(--border);
   border-radius: 12px;
-  background: #fff;
   overflow: hidden;
+  background: #fff;
 }
 
-.proposal-record summary {
-  list-style: none;
-  cursor: pointer;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-  padding: 12px;
-  font-weight: 600;
+.tracker-matrix th,
+.tracker-matrix td {
+  padding: 10px 12px;
+  border-bottom: var(--border);
+  border-right: var(--border);
+  text-align: left;
 }
 
-.proposal-record summary::-webkit-details-marker {
-  display: none;
-}
-
-.proposal-meta {
-  color: var(--muted);
-  font-weight: 500;
-}
-
-.record-result {
-  font-size: 0.82rem;
-  text-transform: uppercase;
+.tracker-matrix th {
+  width: 18%;
+  font-size: 0.75rem;
   letter-spacing: 0.08em;
-}
-
-.record-result.approved {
-  color: #2a7f62;
-}
-
-.record-result.rejected {
-  color: #b03a3a;
-}
-
-.record-result.pending {
-  color: #8d7a2a;
-}
-
-.proposal-record-body {
-  border-top: var(--border);
-  padding: 0 12px 12px;
-  display: grid;
-  gap: 10px;
-}
-
-.vote-grid {
-  display: grid;
-  gap: 8px;
-  grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
-}
-
-.vote-chip {
-  border-radius: 10px;
-  border: var(--border);
-  padding: 8px 10px;
-  font-size: 0.88rem;
+  text-transform: uppercase;
+  color: var(--muted);
   background: var(--panel-2);
 }
 
-.vote-chip.yes {
-  border-color: rgba(44, 127, 122, 0.45);
-  background: rgba(44, 127, 122, 0.1);
+.tracker-matrix td {
+  font-weight: 600;
 }
 
-.vote-chip.no {
-  border-color: rgba(176, 58, 58, 0.45);
-  background: rgba(176, 58, 58, 0.1);
+.tracker-matrix tr:last-child th,
+.tracker-matrix tr:last-child td {
+  border-bottom: none;
+}
+
+.tracker-matrix th:last-child,
+.tracker-matrix td:last-child {
+  border-right: none;
+}
+
+.proposal-matrix-wrap {
+  overflow-x: auto;
+  border: var(--border);
+  border-radius: 12px;
+  background: #fff;
+}
+
+.matrix-scroll-hint {
+  margin-top: -2px;
+  margin-bottom: 10px;
+}
+
+.proposal-matrix {
+  width: 100%;
+  border-collapse: separate;
+  border-spacing: 0;
+  min-width: 980px;
+}
+
+.proposal-matrix thead th {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  background: #f4f6f9;
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--muted);
+}
+
+.proposal-matrix th,
+.proposal-matrix td {
+  border-right: var(--border);
+  border-bottom: var(--border);
+  padding: 9px 10px;
+  text-align: center;
+  white-space: nowrap;
+  font-size: 0.88rem;
+}
+
+.proposal-matrix th:last-child,
+.proposal-matrix td:last-child {
+  border-right: none;
+}
+
+.proposal-matrix tbody tr:last-child td {
+  border-bottom: none;
+}
+
+.proposal-matrix td.team-cell {
+  text-align: left;
+  max-width: 320px;
+  white-space: normal;
+}
+
+.proposal-matrix td.leader-cell {
+  font-weight: 700;
+}
+
+.proposal-matrix td.vote-yes {
+  color: #2a7f62;
+  font-weight: 700;
+  background: rgba(44, 127, 122, 0.08);
+}
+
+.proposal-matrix td.vote-no {
+  color: #b03a3a;
+  font-weight: 700;
+  background: rgba(176, 58, 58, 0.08);
+}
+
+.proposal-matrix td.vote-none {
+  color: var(--muted);
+}
+
+.proposal-matrix td.proposer-vote {
+  box-shadow: inset 0 0 0 1px rgba(61, 90, 128, 0.28);
+}
+
+.proposal-matrix td.mission-pass {
+  color: #2a7f62;
+  font-weight: 700;
+}
+
+.proposal-matrix td.mission-fail {
+  color: #b03a3a;
+  font-weight: 700;
+}
+
+.proposal-matrix td.mission-pending {
+  color: #8d7a2a;
+  font-weight: 600;
+}
+
+.proposal-matrix td.mission-muted {
+  color: var(--muted);
 }
 
 .stack {

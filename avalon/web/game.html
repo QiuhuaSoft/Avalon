@@ -29,17 +29,22 @@
 
         <div class="panel span">
           <h2>Proposal Tracker</h2>
-          <div class="proposal-overview">
-            <div class="proposal-stat">
-              <div class="status-label">Current Proposer</div>
-              <div class="status-value" id="proposalLeader">—</div>
-            </div>
-            <div class="proposal-stat">
-              <div class="status-label">Hammer</div>
-              <div class="status-value" id="proposalHammer">—</div>
-            </div>
+          <div class="tracker-matrix-wrap">
+            <table class="tracker-matrix">
+              <tbody>
+                <tr>
+                  <th>Current Proposer</th>
+                  <td id="proposalLeader">—</td>
+                  <th>Hammer</th>
+                  <td id="proposalHammer">—</td>
+                </tr>
+                <tr>
+                  <th>Proposed Team</th>
+                  <td colspan="3" id="proposalTeam">No proposed team yet.</td>
+                </tr>
+              </tbody>
+            </table>
           </div>
-          <div class="card proposal-team" id="proposalTeam">No proposed team yet.</div>
         </div>
 
         <div class="panel span">
@@ -52,9 +57,16 @@
         </div>
 
         <div class="panel span">
-          <h2>Proposal Record</h2>
-          <p class="hint">Click any proposal to expand and see all Y/N votes.</p>
-          <div id="proposalHistory" class="proposal-history"></div>
+          <h2>Proposal Matrix</h2>
+          <p class="hint">Full public history: every proposal, every Y/N vote, and mission result.</p>
+          <p class="hint matrix-scroll-hint">Scroll horizontally to view all player vote columns.</p>
+          <div class="proposal-matrix-wrap">
+            <table class="proposal-matrix">
+              <thead id="proposalMatrixHead"></thead>
+              <tbody id="proposalMatrixBody"></tbody>
+            </table>
+          </div>
+          <p class="hint hidden" id="proposalMatrixEmpty">No team proposals yet.</p>
         </div>
 
         <div class="panel">
