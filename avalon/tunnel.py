@@ -6,7 +6,6 @@ import threading
 from dataclasses import dataclass
 from typing import Optional
 
-
 URL_PATTERN = re.compile(r"https://[\w.-]+\.trycloudflare\.com")
 
 

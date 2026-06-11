@@ -607,7 +607,9 @@ async function refresh() {
       renderPrivateIntel(cachedPrivate);
       renderPlayerTable(cachedPrivate.visibility || [], cachedState?.lady_holder_id);
     }
-    renderActionMenu(cachedState, cachedPrivate || {});
+    // Use the private snapshot when available: the public state redacts the
+    // viewer's own pending votes, which the action menu needs to detect.
+    renderActionMenu(cachedPrivate?.state || cachedState, cachedPrivate || {});
     if (pending && pending.bot && pending.bot.length && !(pending.human && pending.human.length)) {
       botStatusEl.textContent = `Bots are thinking… (${pending.bot.length} pending)`;
       botStatusEl.classList.remove("hidden");

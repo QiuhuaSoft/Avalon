@@ -1,12 +1,17 @@
 # Avalon
 
-LLM-powered Avalon for local play with bots and remote humans. One game at a time, up to 7 players.
+LLM-powered Avalon for local play with bots and remote humans. One game at a time, up to 10 players.
 
 ## Features
-- Hammer rule: 5th proposal auto-approves (no vote).
+- Hammer rule: 5th proposal auto-approves (no vote). With the hammer disabled, five rejected
+  proposals in a round hand evil the win (official rule).
+- Secret ballots: team votes are revealed only once the proposal resolves; quest votes never
+  leave the server (only aggregate fail counts are public).
 - Event log in SQLite for replay/debug.
 - Human-first turn enforcement with bot catch-up.
 - All core Avalon roles supported (choose any subset per game).
+- Host-only endpoints require a genuine localhost client: requests arriving through a tunnel
+  or reverse proxy (forwarding headers present) are treated as remote and need tokens.
 
 ## Setup
 
@@ -35,6 +40,15 @@ python -m avalon.main
 ```
 
 Server runs at `http://0.0.0.0:8010`.
+
+## Tests
+
+```bash
+python -m pytest
+```
+
+The suite covers the rules engine, ballot secrecy, localhost/token auth, bot deferral,
+and storage. It runs with heuristic bots against a temporary database — no LLM needed.
 
 ## GUI
 

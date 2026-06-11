@@ -78,7 +78,9 @@ class LLMClient:
             # Slightly increase temperature on retry
             temperature = min(0.8, temperature + 0.15)
 
-        return ExtractionResult(success=False, value=None, error=f"Failed after {max_retries} attempts")
+        return ExtractionResult(
+            success=False, value=None, error=f"Failed after {max_retries} attempts"
+        )
 
     # --- Extraction methods for the new simple format ---
 
@@ -155,7 +157,9 @@ class LLMClient:
             message = re.sub(pattern, "", message, flags=re.IGNORECASE).strip()
 
         if not message:
-            return ExtractionResult(success=False, value=None, error="SAY: line only contained action keywords")
+            return ExtractionResult(
+                success=False, value=None, error="SAY: line only contained action keywords"
+            )
 
         return ExtractionResult(success=True, value=message)
 

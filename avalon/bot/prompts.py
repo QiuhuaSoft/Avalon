@@ -1,11 +1,10 @@
 from __future__ import annotations
 
 import random
-from typing import List
+from typing import List, Optional
 
-from ..models import Alignment, GameState, Phase, Player, Role
 from ..game import alignment_for, team_size
-
+from ..models import Alignment, GameState, Phase, Player, Role
 
 # Example dialogue patterns extracted from Avalon-NLU dataset
 EVIL_DIALOGUE_EXAMPLES = [
@@ -15,7 +14,8 @@ EVIL_DIALOGUE_EXAMPLES = [
     "i think they're suspicious since they voted no in last round.",
     "typically if you are good, you would want to put yourself on the party.",
     "it would be weird for them to be bad, but they did also vote no which is a bit suspicious.",
-    "this looks good to me. however as a good person, i would like to suggest myself to be on the quest.",
+    "this looks good to me. however as a good person, "
+    "i would like to suggest myself to be on the quest.",
     "i agree with this party, no objections from me.",
     "why not put yourself on the party? that's a bit odd.",
     "i'm not totally convinced but i'll go along with it for now.",
@@ -139,7 +139,8 @@ def build_system_prompt(player: Player, knowledge: List[str]) -> str:
         f"{personality}{role_tips}\n\n"
         "What you know:\n"
         f"{facts}\n\n"
-        "IMPORTANT: Speak naturally! Keep messages short (1-2 sentences). Sound like a real player, not an AI."
+        "IMPORTANT: Speak naturally! Keep messages short (1-2 sentences). "
+        "Sound like a real player, not an AI."
     )
 
 
@@ -161,7 +162,8 @@ def build_context(state: GameState, player_id: str, recent_chat: List[str]) -> s
     return (
         "=== GAME STATE ===\n"
         f"Players: {player_roster}\n"
-        f"Quest {state.quest_number} | Successes: {state.success_count} | Fails: {state.fail_count}\n"
+        f"Quest {state.quest_number} | Successes: {state.success_count}"
+        f" | Fails: {state.fail_count}\n"
         f"{quest_history_str}"
         f"Leader: {leader.name}\n"
         f"Team size needed: {team_needed}\n"
@@ -290,11 +292,15 @@ QUEST: {example_vote}
 Your response:"""
 
 
-def _assassination_instructions(player: Player, player_names: List[str], evil_names: List[str] = None) -> str:
+def _assassination_instructions(
+    player: Player, player_names: List[str], evil_names: Optional[List[str]] = None
+) -> str:
     # Exclude self and known evil teammates - they can't be Merlin
     evil_names = evil_names or []
     targets = [name for name in player_names if name != player.name and name not in evil_names]
     targets_list = ", ".join(targets)
+    suspect = targets[0] if targets else "someone"
+    example_target = targets[0] if targets else "Unknown"
 
     return f"""=== YOUR TASK ===
 Good has won 3 quests, but you can still win!
@@ -310,8 +316,8 @@ SAY: [Your reasoning - who do you suspect is Merlin?]
 TARGET: PlayerName
 
 EXAMPLE:
-SAY: i noticed {targets[0] if targets else "someone"} always seemed to guide us away from bad parties. they might be merlin.
-TARGET: {targets[0] if targets else "Unknown"}
+SAY: i noticed {suspect} always seemed to guide us away from bad parties. they might be merlin.
+TARGET: {example_target}
 
 Possible targets: {targets_list}
 Your response:"""

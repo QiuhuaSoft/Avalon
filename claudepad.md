@@ -2,6 +2,20 @@
 
 ## Session Summaries
 
+### 2026-06-11T~UTC - Landed WIP (secrecy + hardening) and added the test suite
+- Finished and committed the in-progress batch: `is_local_request` proxy-header hardening
+  (tunneled requests no longer count as localhost), ballot secrecy (`public_state(viewer_id)`
+  redaction + `public_events()` filter), official 8/9/10-player role sets, five-rejection rule,
+  bot-assassin deferral to human evil teammates (no chat spam, follows single-name guidance),
+  EventStore `:memory:` support + tz-aware timestamps.
+- Wrote the first test suite: 40 tests in `tests/` (engine rules, API auth/secrecy via
+  TestClient with spoofed client addresses, bot policy/manager, storage). `pytest` runs in ~0.3s.
+- Replaced deprecated `@app.on_event("startup")` with a lifespan handler (bot loop now
+  cancelled on shutdown). Repo is now ruff-clean; added `[tool.pytest.ini_options]`.
+- Wet-tested: booted a real server, all-bot game completed in ~4s, proxied host_token 403'd.
+- Added ARCHITECTURE.md; fixed stale docs (README said 7 players max; CLAUDE.md pointed at a
+  nonexistent smoke_test.py — real script is scripts/smoke_game.sh).
+
 ### 2026-02-12T~20:00Z - External Bot Mode Implementation + Full Game Test
 - Implemented external bot mode: `manager.py` early return + two new API endpoints (`/game/pending_bots`, `/game/bot_context/{bot_id}`)
 - Ran a full 5-player game (1 human Merlin + 4 Opus sub-agent bots)

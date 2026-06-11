@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import asyncio
-from typing import List
 
 from ..config import SETTINGS
 from ..game import GameEngine
@@ -21,11 +20,17 @@ class BotManager:
             human_pending, bot_pending = self.engine.pending_actions()
             if human_pending or not bot_pending:
                 return
+            progressed = False
             for bot_id in list(bot_pending):
-                await self._act_bot(bot_id)
+                progressed = await self._act_bot(bot_id) or progressed
+            if not progressed:
+                # Every pending bot chose to wait (e.g. assassin deferring to a
+                # human teammate); stop looping instead of spamming decisions.
+                return
             await asyncio.sleep(0)
 
-    async def _act_bot(self, bot_id: str) -> None:
+    async def _act_bot(self, bot_id: str) -> bool:
+        """Let one bot act. Returns True if it applied any action to the engine."""
         state = self.engine.state
         player = next(p for p in state.players if p.id == bot_id)
         knowledge = self.engine.knowledge_for(bot_id)
@@ -41,7 +46,7 @@ class BotManager:
             await self.engine.apply_action(bot_id, "chat", {"message": message})
 
         # Then perform the actual action
-        if action_type == "chat" and state.phase != Phase.lobby:
-            await self.engine.apply_action(bot_id, action_type, payload)
-            return
+        if action_type in (None, "wait"):
+            return bool(message)
         await self.engine.apply_action(bot_id, action_type, payload)
+        return True

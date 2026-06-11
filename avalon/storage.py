@@ -2,8 +2,9 @@ from __future__ import annotations
 
 import json
 import sqlite3
-from datetime import datetime
-from typing import Any, Dict, List
+from datetime import datetime, timezone
+from pathlib import Path
+from typing import List
 
 from .models import Event
 
@@ -11,10 +12,20 @@ from .models import Event
 class EventStore:
     def __init__(self, path: str) -> None:
         self.path = path
+        self._memory_conn: sqlite3.Connection | None = None
+        if path == ":memory:":
+            # Each sqlite3.connect(":memory:") opens a brand-new empty database,
+            # so the schema would vanish between calls; keep one connection alive.
+            self._memory_conn = sqlite3.connect(":memory:")
+        else:
+            Path(path).expanduser().resolve().parent.mkdir(parents=True, exist_ok=True)
         self._ensure_schema()
 
+    def _connect(self) -> sqlite3.Connection:
+        return self._memory_conn if self._memory_conn is not None else sqlite3.connect(self.path)
+
     def _ensure_schema(self) -> None:
-        with sqlite3.connect(self.path) as conn:
+        with self._connect() as conn:
             conn.execute(
                 """
                 CREATE TABLE IF NOT EXISTS events (
@@ -29,15 +40,15 @@ class EventStore:
 
     def append(self, event: Event) -> None:
         payload_json = json.dumps(event.payload)
-        with sqlite3.connect(self.path) as conn:
+        with self._connect() as conn:
             conn.execute(
                 "INSERT INTO events (ts, type, payload) VALUES (?, ?, ?)",
-                (datetime.utcnow().isoformat(), event.type, payload_json),
+                (datetime.now(timezone.utc).isoformat(), event.type, payload_json),
             )
             conn.commit()
 
     def list_events(self) -> List[Event]:
-        with sqlite3.connect(self.path) as conn:
+        with self._connect() as conn:
             rows = conn.execute("SELECT type, payload FROM events ORDER BY id ASC").fetchall()
         events: List[Event] = []
         for row in rows:
@@ -45,6 +56,6 @@ class EventStore:
         return events
 
     def clear(self) -> None:
-        with sqlite3.connect(self.path) as conn:
+        with self._connect() as conn:
             conn.execute("DELETE FROM events")
             conn.commit()

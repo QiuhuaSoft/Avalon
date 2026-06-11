@@ -4,9 +4,9 @@ import asyncio
 import json
 import logging
 import os
-from typing import Dict, Optional
-
+from contextlib import asynccontextmanager
 from pathlib import Path
+from typing import AsyncIterator, Dict, List, Optional
 
 from fastapi import FastAPI, Request, WebSocket, WebSocketDisconnect
 from fastapi.responses import FileResponse, JSONResponse
@@ -19,6 +19,7 @@ from .game import GameEngine
 from .models import (
     ActionRequest,
     CreateGameRequest,
+    Event,
     Phase,
     PlayerAddRequest,
     PlayerJoinRequest,
@@ -39,6 +40,22 @@ def log_event(event: str, **fields: object) -> None:
     logger.info(json.dumps(payload, ensure_ascii=True))
 
 
+# Headers added by reverse proxies and tunnel daemons (e.g. cloudflared).
+PROXY_HEADERS = ("cf-connecting-ip", "x-forwarded-for", "x-real-ip", "forwarded")
+
+
+def is_local_request(request: Request) -> bool:
+    """True only for requests that genuinely originate on this machine.
+
+    Tunnel daemons such as cloudflared connect from loopback, so checking the
+    client host alone would treat every remote player as local. Proxied
+    requests carry forwarding headers; their presence marks the request remote.
+    """
+    if not request.client or request.client.host not in ("127.0.0.1", "::1"):
+        return False
+    return not any(header in request.headers for header in PROXY_HEADERS)
+
+
 if DEBUG_LOGS:
     logging.basicConfig(level=logging.INFO)
 
@@ -48,23 +65,29 @@ engine = GameEngine(store)
 bot_manager = BotManager(engine)
 tunnel_manager = TunnelManager(f"http://localhost:{SETTINGS.port}")
 
-app = FastAPI(title="Avalon")
+
+async def _bot_loop() -> None:
+    while True:
+        try:
+            if engine.has_state():
+                await bot_manager.maybe_act()
+        except Exception as exc:  # pragma: no cover - best-effort background loop
+            log_event("bot_loop_error", error=str(exc))
+        await asyncio.sleep(0.5)
+
+
+@asynccontextmanager
+async def lifespan(_: FastAPI) -> AsyncIterator[None]:
+    bot_task = asyncio.create_task(_bot_loop())
+    try:
+        yield
+    finally:
+        bot_task.cancel()
+
+
+app = FastAPI(title="Avalon", lifespan=lifespan)
 WEB_DIR = Path(__file__).parent / "web"
 app.mount("/static", StaticFiles(directory=WEB_DIR), name="static")
-
-
-@app.on_event("startup")
-async def start_bot_loop() -> None:
-    async def bot_loop() -> None:
-        while True:
-            try:
-                if engine.has_state():
-                    await bot_manager.maybe_act()
-            except Exception as exc:  # pragma: no cover - best-effort background loop
-                log_event("bot_loop_error", error=str(exc))
-            await asyncio.sleep(0.5)
-
-    asyncio.create_task(bot_loop())
 
 
 @app.get("/")
@@ -93,7 +116,9 @@ async def lobby() -> FileResponse:
 
 
 @app.post("/game/new")
-async def new_game(req: CreateGameRequest) -> Dict:
+async def new_game(req: CreateGameRequest, request: Request) -> Dict:
+    if not is_local_request(request):
+        return JSONResponse(status_code=403, content={"error": "localhost only"})
     state = await engine.create_game(req)
     log_event(
         "game_created",
@@ -106,7 +131,9 @@ async def new_game(req: CreateGameRequest) -> Dict:
 
 
 @app.post("/game/start")
-async def start_game() -> Dict:
+async def start_game(request: Request) -> Dict:
+    if not is_local_request(request):
+        return JSONResponse(status_code=403, content={"error": "localhost only"})
     state = await engine.start_game()
     log_event("game_started", game_id=state.id, player_count=len(state.players))
     await bot_manager.maybe_act()
@@ -120,7 +147,7 @@ async def action(req: ActionRequest, request: Request) -> Dict:
         player_id = engine.player_id_for_token(req.token)
     if not player_id:
         return JSONResponse(status_code=400, content={"error": "token required"})
-    if not req.token and request.client and request.client.host not in ("127.0.0.1", "::1"):
+    if not req.token and not is_local_request(request):
         return JSONResponse(status_code=403, content={"error": "token required"})
     log_event("player_action", player_id=player_id, action_type=req.action_type)
     await engine.apply_action(player_id, req.action_type, req.payload)
@@ -139,7 +166,7 @@ async def get_state(
     if token:
         player_id = engine.player_id_for_token(token)
     if player_id:
-        if not token and request.client and request.client.host not in ("127.0.0.1", "::1"):
+        if not token and not is_local_request(request):
             return JSONResponse(status_code=403, content={"error": "token required"})
         payload = engine.private_state_for(player_id)
         payload["player_id"] = player_id
@@ -150,19 +177,49 @@ async def get_state(
 
 @app.get("/game/host_token")
 async def get_host_token(request: Request) -> Dict:
-    if request.client and request.client.host not in ("127.0.0.1", "::1"):
+    if not is_local_request(request):
         return JSONResponse(status_code=403, content={"error": "localhost only"})
     return {"host_token": engine.host_token()}
 
 
+# Ballot resolution events; until one lands, team votes stay hidden.
+TEAM_VOTE_RESOLUTIONS = {"team_approved", "team_rejected", "team_hammered"}
+
+
+def public_events() -> List[Event]:
+    """Event log with secret ballots removed.
+
+    Quest votes never leave the server (only aggregate fail counts are public).
+    Team votes are withheld until their proposal resolves so nobody can watch
+    ballots land before casting their own.
+    """
+    visible: List[Event] = []
+    open_ballots: List[Event] = []
+    for event in store.list_events():
+        if event.type == "quest_vote":
+            continue
+        if event.type == "team_proposed":
+            open_ballots = []
+            visible.append(event)
+        elif event.type == "team_vote":
+            open_ballots.append(event)
+        elif event.type in TEAM_VOTE_RESOLUTIONS:
+            visible.extend(open_ballots)
+            open_ballots = []
+            visible.append(event)
+        else:
+            visible.append(event)
+    return visible
+
+
 @app.get("/game/events")
 async def get_events() -> Dict:
-    return {"events": store.list_events()}
+    return {"events": public_events()}
 
 
 @app.get("/game/pending_bots")
 async def pending_bots(request: Request) -> Dict:
-    if request.client and request.client.host not in ("127.0.0.1", "::1"):
+    if not is_local_request(request):
         return JSONResponse(status_code=403, content={"error": "localhost only"})
     if not engine.has_state():
         return {"pending_bots": [], "phase": None, "game_over": False, "winner": None}
@@ -178,7 +235,7 @@ async def pending_bots(request: Request) -> Dict:
 
 @app.get("/game/bot_context/{bot_id}")
 async def bot_context(bot_id: str, request: Request) -> Dict:
-    if request.client and request.client.host not in ("127.0.0.1", "::1"):
+    if not is_local_request(request):
         return JSONResponse(status_code=403, content={"error": "localhost only"})
     if SETTINGS.bot_mode != "external":
         return JSONResponse(status_code=400, content={"error": "external bot mode not enabled"})
@@ -221,11 +278,7 @@ async def bot_context(bot_id: str, request: Request) -> Dict:
 
 @app.post("/game/players/add")
 async def add_player(req: PlayerAddRequest, request: Request) -> Dict:
-    if (
-        not engine.is_host_token(req.host_token)
-        and request.client
-        and request.client.host not in ("127.0.0.1", "::1")
-    ):
+    if not engine.is_host_token(req.host_token) and not is_local_request(request):
         return JSONResponse(status_code=403, content={"error": "host token required"})
     state = await engine.add_player(req.is_bot, req.name)
     log_event(
@@ -239,11 +292,7 @@ async def add_player(req: PlayerAddRequest, request: Request) -> Dict:
 
 @app.post("/game/players/remove")
 async def remove_player(req: PlayerUpdateRequest, request: Request) -> Dict:
-    if (
-        not engine.is_host_token(req.host_token)
-        and request.client
-        and request.client.host not in ("127.0.0.1", "::1")
-    ):
+    if not engine.is_host_token(req.host_token) and not is_local_request(request):
         return JSONResponse(status_code=403, content={"error": "host token required"})
     state = await engine.remove_player(req.player_id)
     log_event("player_removed", game_id=state.id, player_id=req.player_id)
@@ -252,11 +301,7 @@ async def remove_player(req: PlayerUpdateRequest, request: Request) -> Dict:
 
 @app.post("/game/players/remove_last_human")
 async def remove_last_human(request: Request, host_token: Optional[str] = None) -> Dict:
-    if (
-        not engine.is_host_token(host_token)
-        and request.client
-        and request.client.host not in ("127.0.0.1", "::1")
-    ):
+    if not engine.is_host_token(host_token) and not is_local_request(request):
         return JSONResponse(status_code=403, content={"error": "host token required"})
     state = await engine.remove_last_human_slot()
     log_event("human_slot_removed", game_id=state.id)
@@ -265,7 +310,7 @@ async def remove_last_human(request: Request, host_token: Optional[str] = None) 
 
 @app.post("/game/players/rename")
 async def rename_player(req: PlayerUpdateRequest, request: Request) -> Dict:
-    is_localhost = request.client and request.client.host in ("127.0.0.1", "::1")
+    is_localhost = is_local_request(request)
     is_host = engine.is_host_token(req.host_token)
     # Allow self-rename if player provides their own valid token
     is_self_rename = False
@@ -276,7 +321,9 @@ async def rename_player(req: PlayerUpdateRequest, request: Request) -> Dict:
         except ValueError:
             pass
     if not is_localhost and not is_host and not is_self_rename:
-        return JSONResponse(status_code=403, content={"error": "Not authorized to rename this player"})
+        return JSONResponse(
+            status_code=403, content={"error": "Not authorized to rename this player"}
+        )
     if not req.name:
         return JSONResponse(status_code=400, content={"error": "Name required"})
     state = await engine.rename_player(req.player_id, req.name)
@@ -286,11 +333,7 @@ async def rename_player(req: PlayerUpdateRequest, request: Request) -> Dict:
 
 @app.post("/game/players/reset")
 async def reset_player(req: PlayerUpdateRequest, request: Request) -> Dict:
-    if (
-        not engine.is_host_token(req.host_token)
-        and request.client
-        and request.client.host not in ("127.0.0.1", "::1")
-    ):
+    if not engine.is_host_token(req.host_token) and not is_local_request(request):
         return JSONResponse(status_code=403, content={"error": "host token required"})
     state = await engine.reset_player(req.player_id)
     log_event("player_reset", game_id=state.id, player_id=req.player_id)
@@ -301,7 +344,7 @@ async def reset_player(req: PlayerUpdateRequest, request: Request) -> Dict:
 async def claim_player(req: PlayerUpdateRequest) -> Dict:
     if not req.name:
         return JSONResponse(status_code=400, content={"error": "Name required"})
-    state = await engine.claim_player(req.player_id, req.name)
+    await engine.claim_player(req.player_id, req.name)
     return {"state": engine.public_state()}
 
 
@@ -322,7 +365,7 @@ async def ready_player(req: PlayerReadyRequest, request: Request) -> Dict:
         player_id = engine.player_id_for_token(req.token)
     if not player_id:
         return JSONResponse(status_code=400, content={"error": "token required"})
-    if not req.token and request.client and request.client.host not in ("127.0.0.1", "::1"):
+    if not req.token and not is_local_request(request):
         return JSONResponse(status_code=403, content={"error": "token required"})
     state = await engine.set_ready(player_id, req.ready)
     log_event(
@@ -342,19 +385,25 @@ async def ready_player(req: PlayerReadyRequest, request: Request) -> Dict:
 
 
 @app.post("/tunnel/start")
-async def start_tunnel() -> Dict:
+async def start_tunnel(request: Request) -> Dict:
+    if not is_local_request(request):
+        return JSONResponse(status_code=403, content={"error": "localhost only"})
     status = tunnel_manager.start()
     return {"tunnel": status.__dict__}
 
 
 @app.get("/tunnel/status")
-async def tunnel_status() -> Dict:
+async def tunnel_status(request: Request) -> Dict:
+    if not is_local_request(request):
+        return JSONResponse(status_code=403, content={"error": "localhost only"})
     status = tunnel_manager.status()
     return {"tunnel": status.__dict__}
 
 
 @app.post("/tunnel/stop")
-async def stop_tunnel() -> Dict:
+async def stop_tunnel(request: Request) -> Dict:
+    if not is_local_request(request):
+        return JSONResponse(status_code=403, content={"error": "localhost only"})
     status = tunnel_manager.stop()
     return {"tunnel": status.__dict__}
 

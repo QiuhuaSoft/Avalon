@@ -49,14 +49,15 @@ DEFAULT_ROLE_SETS = {
         Role.morgana,
         Role.minion,
     ],
+    # Official Avalon alignment counts: 8 players = 3 evil, 9 = 3 evil, 10 = 4 evil.
     8: [
         Role.merlin,
         Role.percival,
         Role.loyal_servant,
         Role.loyal_servant,
+        Role.loyal_servant,
         Role.assassin,
         Role.morgana,
-        Role.mordred,
         Role.minion,
     ],
     9: [
@@ -65,10 +66,10 @@ DEFAULT_ROLE_SETS = {
         Role.loyal_servant,
         Role.loyal_servant,
         Role.loyal_servant,
+        Role.loyal_servant,
         Role.assassin,
         Role.morgana,
         Role.mordred,
-        Role.minion,
     ],
     10: [
         Role.merlin,
@@ -76,11 +77,11 @@ DEFAULT_ROLE_SETS = {
         Role.loyal_servant,
         Role.loyal_servant,
         Role.loyal_servant,
+        Role.loyal_servant,
         Role.assassin,
         Role.morgana,
         Role.mordred,
         Role.oberon,
-        Role.minion,
     ],
 }
 
@@ -305,15 +306,26 @@ class GameEngine:
             self._emit("player_reset", {"player_id": player_id})
             return state
 
-    def public_state(self) -> GameState:
+    def public_state(self, viewer_id: Optional[str] = None) -> GameState:
         state = self.state.model_copy(deep=True)
         for p in state.players:
             p.role = None
         state.lady_history = []
+        # Team votes are revealed simultaneously: while the vote is open only the
+        # viewer's own ballot is visible. Once resolved (approved team carries its
+        # votes into the quest phase) they are public record.
+        if state.phase == Phase.team_vote:
+            state.team_votes = {
+                pid: vote for pid, vote in state.team_votes.items() if pid == viewer_id
+            }
+        # Quest votes are secret forever; only the aggregate fail count is public.
+        state.quest_votes = {
+            pid: vote for pid, vote in state.quest_votes.items() if pid == viewer_id
+        }
         return state
 
     def private_state_for(self, player_id: str) -> Dict:
-        state = self.public_state()
+        state = self.public_state(viewer_id=player_id)
         player = self._get_player(player_id)
         for p in state.players:
             if p.id == player_id:
@@ -384,9 +396,17 @@ class GameEngine:
             state.proposal_attempts += 1
             state.proposed_team = []
             state.team_votes = {}
-            state.phase = Phase.team_proposal
-            state.leader_index = (state.leader_index + 1) % len(state.players)
             self._emit("team_rejected", {"approvals": approvals, "rejects": rejects})
+            # Official rule: five consecutive rejected proposals hand evil the win.
+            # Only reachable with the hammer disabled (the hammer auto-approves the
+            # fifth proposal before it can be voted down).
+            if state.proposal_attempts >= 5:
+                state.phase = Phase.game_over
+                state.winner = Alignment.evil
+                self._emit("five_rejections", {"quest": state.quest_number})
+            else:
+                state.phase = Phase.team_proposal
+                state.leader_index = (state.leader_index + 1) % len(state.players)
         return state
 
     def _handle_quest_vote(self, state: GameState, player: Player, payload: Dict) -> GameState:
@@ -531,7 +551,6 @@ class GameEngine:
         player = self._get_player(player_id)
         if not player.role:
             return []
-        players_by_id = {p.id: p for p in self.state.players}
         evil_known = [
             p for p in self.state.players if p.role in EVIL_ROLES and p.role != Role.oberon
         ]

@@ -2,7 +2,8 @@
 
 ## Development
 - Server: `python -m avalon.main` (runs on port 8010)
-- Smoke test: `python scripts/smoke_test.py`
+- Tests: `python -m pytest` (heuristic bots, temp DB — no LLM needed)
+- Smoke test: `scripts/smoke_game.sh` (boots a real server, opens the game page)
 - Debug logging: `AVALON_DEBUG=1`
 
 ## Bot Modes

@@ -2,15 +2,19 @@ from __future__ import annotations
 
 import logging
 import random
+import re
 from typing import Dict, List, Optional
 
 from ..config import SETTINGS
 from ..game import alignment_for, team_size
 from ..models import Alignment, GameState, Phase, Player, Role
-from .llm import LLMClient, ExtractionResult
+from .llm import ExtractionResult, LLMClient
 from .prompts import build_action_instructions, build_context, build_system_prompt
 
 logger = logging.getLogger(__name__)
+
+# Sent once when a bot assassin hands the kill decision to a human evil teammate.
+ASSASSIN_DEFER_MESSAGE = "I'll let the team decide who we should target."
 
 
 class BotPolicy:
@@ -22,7 +26,9 @@ class BotPolicy:
         if SETTINGS.bot_mode != "llm":
             return self._heuristic(state, player)
 
-        recent_chat = [f"{msg.player_id}: {msg.message}" for msg in state.chat[-SETTINGS.max_recent_chat:]]
+        recent_chat = [
+            f"{msg.player_id}: {msg.message}" for msg in state.chat[-SETTINGS.max_recent_chat:]
+        ]
         prompt = self._build_prompt(state, player, knowledge, recent_chat)
 
         # Route to phase-specific handlers
@@ -105,7 +111,9 @@ class BotPolicy:
             if not vote_result.success:
                 return vote_result
             say_result = LLMClient.extract_say(text)
-            return ExtractionResult(success=True, value={"approve": vote_result.value, "say": say_result.value})
+            return ExtractionResult(
+                success=True, value={"approve": vote_result.value, "say": say_result.value}
+            )
 
         result = self._llm.generate_with_retry(prompt, extractor)
         if result.success:
@@ -127,7 +135,9 @@ class BotPolicy:
             if not quest_result.success:
                 return quest_result
             say_result = LLMClient.extract_say(text)
-            return ExtractionResult(success=True, value={"success": quest_result.value, "say": say_result.value})
+            return ExtractionResult(
+                success=True, value={"success": quest_result.value, "say": say_result.value}
+            )
 
         result = self._llm.generate_with_retry(prompt, extractor)
         if result.success:
@@ -146,8 +156,7 @@ class BotPolicy:
         """Handle assassination with LLM + validation + fallback."""
         # Defer to human evil teammates if present
         if self._has_human_evil_player(state):
-            logger.info("Bot assassin deferring to human evil player for assassination decision")
-            return {"action_type": "chat", "payload": {"message": "I'll let the team decide who we should target."}}
+            return self._deferred_assassination(state, player)
 
         def extractor(text: str) -> ExtractionResult:
             target_result = LLMClient.extract_target(text, "TARGET")
@@ -166,12 +175,20 @@ class BotPolicy:
                 )
             # Can't target evil teammates - they can't be Merlin
             target_player = next((p for p in state.players if p.id == target_id), None)
-            if target_player and target_player.role and alignment_for(target_player.role) == Alignment.evil:
+            if (
+                target_player
+                and target_player.role
+                and alignment_for(target_player.role) == Alignment.evil
+            ):
                 return ExtractionResult(
-                    success=False, value=None, error=f"Cannot target {target_player.name} - they are your evil teammate"
+                    success=False,
+                    value=None,
+                    error=f"Cannot target {target_player.name} - they are your evil teammate",
                 )
             say_result = LLMClient.extract_say(text)
-            return ExtractionResult(success=True, value={"target_id": target_id, "say": say_result.value})
+            return ExtractionResult(
+                success=True, value={"target_id": target_id, "say": say_result.value}
+            )
 
         result = self._llm.generate_with_retry(prompt, extractor)
         if result.success:
@@ -205,7 +222,9 @@ class BotPolicy:
                     success=False, value=None, error="Cannot inspect yourself"
                 )
             say_result = LLMClient.extract_say(text)
-            return ExtractionResult(success=True, value={"target_id": target_id, "say": say_result.value})
+            return ExtractionResult(
+                success=True, value={"target_id": target_id, "say": say_result.value}
+            )
 
         result = self._llm.generate_with_retry(prompt, extractor)
         if result.success:
@@ -221,6 +240,62 @@ class BotPolicy:
         return self._heuristic(state, player)
 
     # --- Helper methods ---
+
+    def _deferred_assassination(self, state: GameState, player: Player) -> Dict:
+        """Bot assassin with a human evil teammate: ask once, then follow their call.
+
+        Returns an assassinate action once a human evil teammate's chat names
+        exactly one viable target; otherwise defers (a single chat message) and
+        waits. The wait action is a no-op so the bot loop does not spam chat.
+        """
+        target_id = self._assassination_guidance(state, player)
+        if target_id:
+            logger.info(f"Bot assassin following human guidance: targeting {target_id}")
+            return {"action_type": "assassinate", "payload": {"target_id": target_id}}
+        if not self._has_deferred(state, player):
+            logger.info("Bot assassin deferring to human evil player for assassination decision")
+            return {"action_type": "chat", "payload": {"message": ASSASSIN_DEFER_MESSAGE}}
+        return {"action_type": "wait"}
+
+    @staticmethod
+    def _has_deferred(state: GameState, player: Player) -> bool:
+        return any(
+            msg.player_id == player.id and msg.message == ASSASSIN_DEFER_MESSAGE
+            for msg in state.chat
+        )
+
+    @staticmethod
+    def _assassination_guidance(state: GameState, assassin: Player) -> Optional[str]:
+        """Target named by a human evil teammate after the assassin deferred.
+
+        Scans chat newer than the deferral message, latest first, and accepts a
+        message only when it names exactly one non-evil player.
+        """
+        last_defer = None
+        for idx, msg in enumerate(state.chat):
+            if msg.player_id == assassin.id and msg.message == ASSASSIN_DEFER_MESSAGE:
+                last_defer = idx
+        if last_defer is None:
+            return None
+        human_evil_ids = {
+            p.id
+            for p in state.players
+            if not p.is_bot and p.role and alignment_for(p.role) == Alignment.evil
+        }
+        candidates = [
+            p for p in state.players if not p.role or alignment_for(p.role) != Alignment.evil
+        ]
+        for msg in reversed(state.chat[last_defer + 1 :]):
+            if msg.player_id not in human_evil_ids:
+                continue
+            mentioned = {
+                p.id
+                for p in candidates
+                if re.search(rf"\b{re.escape(p.name)}\b", msg.message, re.IGNORECASE)
+            }
+            if len(mentioned) == 1:
+                return next(iter(mentioned))
+        return None
 
     def _resolve_name_to_id(self, state: GameState, name: str) -> Optional[str]:
         """Convert a player name to their ID (case-insensitive, partial match)."""
@@ -264,9 +339,15 @@ class BotPolicy:
         if state.phase == Phase.assassination and player.role == Role.assassin:
             # Defer to human evil teammates if present
             if self._has_human_evil_player(state):
-                return {"action_type": "chat", "payload": {"message": "pass"}}
-            candidates = [p.id for p in state.players if p.id != player.id]
-            return {"action_type": "assassinate", "payload": {"target_id": random.choice(candidates)}}
+                return self._deferred_assassination(state, player)
+            # Evil teammates cannot be Merlin; only good players are worth a shot.
+            candidates = [
+                p.id
+                for p in state.players
+                if p.id != player.id and (not p.role or alignment_for(p.role) != Alignment.evil)
+            ]
+            target_id = random.choice(candidates)
+            return {"action_type": "assassinate", "payload": {"target_id": target_id}}
 
         if state.phase == Phase.lady_of_lake and state.lady_holder_id == player.id:
             candidates = [p.id for p in state.players if p.id != player.id]
