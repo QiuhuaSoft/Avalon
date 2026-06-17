@@ -90,6 +90,7 @@ function renderHostSlots(players) {
       tag.className = "slot-tag";
       tag.textContent = player.ready ? "Ready" : player.claimed ? "Joined" : "Open";
       const nameInput = document.createElement("input");
+      nameInput.maxLength = 60; // mirrors the server-side MAX_NAME_LENGTH cap in game.py
       nameInput.value = player.name;
       const saveBtn = document.createElement("button");
       saveBtn.className = "ghost";

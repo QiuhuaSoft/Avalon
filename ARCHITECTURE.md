@@ -14,6 +14,9 @@ Single-process FastAPI app hosting one Avalon game at a time, played by humans
 - `avalon/game.py` — rules engine. Pure-ish state machine over `GameState`
   (`avalon/models.py`): proposals, team votes, quests, Lady of the Lake, assassination,
   hammer and five-rejection rules. Emits events to the store; guarded by an asyncio lock.
+  It is also the input-validation boundary: rosters must be 5–10 players with unique,
+  non-empty IDs, and untrusted free text (chat messages, player names) is length-capped
+  (`MAX_CHAT_LENGTH`, `MAX_NAME_LENGTH`) since it is echoed into every deep-copied snapshot.
 - `avalon/storage.py` — append-only SQLite event log (replay/debug). Supports `:memory:`
   (kept on one connection) for tests.
 - `avalon/bot/` — `manager.py` drives pending bots; `policy.py` decides actions

@@ -2,6 +2,27 @@
 
 ## Session Summaries
 
+### 2026-06-17T~UTC - Input-hardening pass + restored the mypy gate against typed mlx_lm
+- Closed three real input gaps in `game.py`, all reachable from token-authenticated
+  remote clients (the engine is the enforcement boundary):
+  - `create_game` accepted unsupported player counts (4, 11, ...) whenever explicit roles
+    were supplied — they slipped past the role-count check and only crashed later at propose
+    time ("Unsupported player count"). Now rejected up front (`MIN_PLAYERS`/`MAX_PLAYERS`).
+  - `create_game` accepted duplicate and empty player IDs, which silently corrupt token maps,
+    `_get_player`, and vote dicts. Now rejected.
+  - Chat accepted unbounded messages (verified a 200K-char message stored + deep-copied on
+    every poll). Capped at `MAX_CHAT_LENGTH` (1000); names capped at `MAX_NAME_LENGTH` (60)
+    via a shared `_clean_name` used by add/rename/claim/join (also trims + rejects blank).
+- Restored the "mypy --strict clean" contract: `mlx_lm` 0.30.5 ships `py.typed`, so `load()`'s
+  `Union[2-tuple, 3-tuple]` return surfaced 2 latent errors in `bot/llm.py` (attributes inferred
+  as `None`; union unpack). `test_typing.py` would have failed in any env with mypy + modern
+  mlx_lm. Fixed with `Any` field annotations + a `cast` (runtime-identical) — 0 mypy errors.
+- Tests 100 -> 111: new `tests/test_input_validation.py` (count/ID/chat/name bounds) + an
+  HTTP test that an engine ValueError surfaces as 400 `{"error": ...}`. Frontend: chat input
+  `maxlength` mirrors the server cap.
+- Verified: ruff clean, mypy clean, 111 pass. Wet-tested a real heuristic server — all-bot game
+  ran to game_over, oversized chat 400'd, bad-count/dup-id creates 400'd, no `quest_vote` leaked.
+
 ### 2026-06-17T~UTC - Type-safety pass: made package mypy --strict clean (75 -> 0)
 - pyproject declared `[tool.mypy] strict = true` but `mypy avalon` reported **75 errors** —
   the config was never honored. Drove it to **0 errors** across all 13 modules.
@@ -65,6 +86,18 @@
 - Committed and pushed to main: ae76d7f
 
 ## Key Findings
+
+### mypy gate depends on the installed mlx_lm
+- `mlx_lm` >= ~0.30 ships `py.typed`, so the `[[tool.mypy.overrides]] ignore_missing_imports`
+  no longer turns it into `Any`. Its real `load()` type is `Union[2-tuple, 3-tuple]`. `bot/llm.py`
+  pins the result with `cast(Tuple[Any, Any], ...)` and annotates `_model`/`_tokenizer` as `Any`;
+  keep those if you touch the loader. `test_typing.py` only runs when `mypy` is on PATH — install
+  the `dev` extra (`pip install -e '.[dev]']`) before trusting a "mypy clean" claim.
+
+### Engine is the input-validation boundary
+- `create_game` enforces 5-10 players with unique, non-empty IDs; chat/name free text is
+  length-capped (`MAX_CHAT_LENGTH`/`MAX_NAME_LENGTH`). These inputs reach the engine from remote
+  token-authed clients and are deep-copied into every snapshot, so bound new free-text fields too.
 
 ### LLM output parser (bot/llm.py)
 - Field extractors must separate the keyword from its value with `[^\S\n]*` (horizontal

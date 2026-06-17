@@ -51,7 +51,8 @@
           <h2>Chat</h2>
           <div class="chat" id="chatLog"></div>
           <div class="inline">
-            <input id="chatMessage" placeholder="Say something to the table" />
+            <!-- maxlength mirrors the server-side MAX_CHAT_LENGTH cap in game.py -->
+            <input id="chatMessage" maxlength="1000" placeholder="Say something to the table" />
             <button id="sendChat">Send</button>
           </div>
         </div>

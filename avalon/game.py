@@ -21,6 +21,18 @@ from .storage import EventStore
 
 EVIL_ROLES = {Role.assassin, Role.morgana, Role.mordred, Role.oberon, Role.minion}
 
+# Avalon is defined for 5-10 players; the quest-size and role tables below have no
+# rows outside that range, so a game built outside it cannot be played.
+MIN_PLAYERS = 5
+MAX_PLAYERS = 10
+
+# Caps on untrusted free text. Chat and names arrive from remote players (over a
+# tunnel, authenticated only by a per-player token) and are echoed into every
+# public-state snapshot, which is deep-copied on each poll/stream tick. Bounding
+# them keeps one client from amplifying memory and bandwidth for everyone.
+MAX_CHAT_LENGTH = 1000
+MAX_NAME_LENGTH = 60
+
 QUEST_TEAM_SIZES = {
     5: [2, 3, 2, 3, 3],
     6: [2, 3, 4, 3, 4],
@@ -132,9 +144,18 @@ class GameEngine:
     async def create_game(self, req: CreateGameRequest) -> GameState:
         async with self._lock:
             player_count = len(req.players)
-            roles = req.roles or DEFAULT_ROLE_SETS.get(player_count)
-            if not roles:
-                raise ValueError("Unsupported player count or roles not provided")
+            if player_count < MIN_PLAYERS or player_count > MAX_PLAYERS:
+                raise ValueError(
+                    "Unsupported player count: "
+                    f"Avalon supports {MIN_PLAYERS}-{MAX_PLAYERS} players"
+                )
+            ids = [p.id for p in req.players]
+            if any(not pid for pid in ids):
+                raise ValueError("Player IDs must be non-empty")
+            if len(set(ids)) != len(ids):
+                raise ValueError("Player IDs must be unique")
+            # player_count is in range, so a default set always exists.
+            roles = req.roles or DEFAULT_ROLE_SETS[player_count]
             if len(roles) != player_count:
                 raise ValueError("Role count must match player count")
             if Role.morgana in roles and Role.percival not in roles:
@@ -189,8 +210,10 @@ class GameEngine:
             player = self._get_player(player_id)
             if action_type == "chat":
                 message = payload.get("message", "")
-                if not message:
+                if not isinstance(message, str) or not message.strip():
                     raise ValueError("Message required")
+                if len(message) > MAX_CHAT_LENGTH:
+                    raise ValueError(f"Message too long (max {MAX_CHAT_LENGTH} characters)")
                 if state.phase == Phase.assassination and player.role not in EVIL_ROLES:
                     raise ValueError("Only evil players may chat during assassination")
                 state.chat.append(ChatMessage(player_id=player_id, message=message))
@@ -218,11 +241,12 @@ class GameEngine:
             state = self.state
             if state.started:
                 raise ValueError("Game already started")
-            if len(state.players) >= 10:
+            if len(state.players) >= MAX_PLAYERS:
                 raise ValueError("Max players reached")
             prefix = "b" if is_bot else "h"
             next_id = self._next_id(prefix)
-            display_name = name or (f"Bot {next_id[1:]}" if is_bot else f"Human {next_id[1:]}")
+            default_name = f"Bot {next_id[1:]}" if is_bot else f"Human {next_id[1:]}"
+            display_name = self._clean_name(name) if name else default_name
             state.players.append(Player(id=next_id, name=display_name, is_bot=is_bot))
             self._assign_token(next_id)
             self._emit("player_added", {"player_id": next_id, "is_bot": is_bot})
@@ -246,8 +270,8 @@ class GameEngine:
             if state.started:
                 raise ValueError("Game already started")
             player = self._get_player(player_id)
-            player.name = name
-            self._emit("player_renamed", {"player_id": player_id, "name": name})
+            player.name = self._clean_name(name)
+            self._emit("player_renamed", {"player_id": player_id, "name": player.name})
             return state
 
     async def claim_player(self, player_id: str, name: str) -> GameState:
@@ -260,7 +284,7 @@ class GameEngine:
                 raise ValueError("Player already claimed")
             player.claimed = True
             if name:
-                player.name = name
+                player.name = self._clean_name(name)
             self._emit("player_claimed", {"player_id": player_id, "name": player.name})
             return state
 
@@ -273,7 +297,7 @@ class GameEngine:
                 if not player.is_bot and not player.claimed:
                     player.claimed = True
                     player.ready = False
-                    player.name = name
+                    player.name = self._clean_name(name)
                     self._emit("player_claimed", {"player_id": player.id, "name": player.name})
                     return player
             raise ValueError("No available human seats")
@@ -695,6 +719,15 @@ class GameEngine:
                 continue
         next_num = max(numbers, default=0) + 1
         return f"{prefix}{next_num}"
+
+    @staticmethod
+    def _clean_name(name: str) -> str:
+        cleaned = name.strip()
+        if not cleaned:
+            raise ValueError("Name required")
+        if len(cleaned) > MAX_NAME_LENGTH:
+            raise ValueError(f"Name too long (max {MAX_NAME_LENGTH} characters)")
+        return cleaned
 
     def _assign_token(self, player_id: str) -> None:
         token = str(uuid.uuid4())

@@ -1,6 +1,6 @@
 # Avalon
 
-LLM-powered Avalon for local play with bots and remote humans. One game at a time, up to 10 players.
+LLM-powered Avalon for local play with bots and remote humans. One game at a time, 5–10 players.
 
 ## Features
 - Hammer rule: 5th proposal auto-approves (no vote). With the hammer disabled, five rejected

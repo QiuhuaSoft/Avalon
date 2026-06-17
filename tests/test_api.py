@@ -82,6 +82,14 @@ def test_auth_failures_use_the_error_json_shape():
     assert resp.json() == {"error": "localhost only"}
 
 
+def test_create_game_rejects_unsupported_player_count_with_error_shape():
+    """Engine ValueErrors surface as 400 {"error": ...}, not an unhandled 500."""
+    too_many = [{"id": f"h{i}", "name": f"H{i}", "is_bot": False} for i in range(1, 12)]
+    resp = local.post("/game/new", json={"players": too_many})
+    assert resp.status_code == 400
+    assert "player count" in resp.json()["error"].lower()
+
+
 def test_proxied_loopback_requests_are_treated_as_remote():
     """cloudflared connects from 127.0.0.1, so forwarding headers must matter."""
     create_game()

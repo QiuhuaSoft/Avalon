@@ -3,7 +3,7 @@ from __future__ import annotations
 import logging
 import re
 from dataclasses import dataclass
-from typing import Any, Callable, Optional, Tuple
+from typing import Any, Callable, Optional, Tuple, cast
 
 from ..config import SETTINGS
 
@@ -20,14 +20,19 @@ class ExtractionResult:
 class LLMClient:
     def __init__(self, model_id: str | None = None) -> None:
         self.model_id = model_id or SETTINGS.qwen_model
-        self._model = None
-        self._tokenizer = None
+        # Lazily populated on first use; Any so mypy --strict accepts the model
+        # and tokenizer objects (rather than inferring the attribute type None).
+        self._model: Any = None
+        self._tokenizer: Any = None
 
     def _ensure_loaded(self) -> Tuple[Any, Any]:
         if self._model is None or self._tokenizer is None:
             from mlx_lm import load
 
-            self._model, self._tokenizer = load(self.model_id)
+            # load() returns (model, tokenizer), or a 3-tuple when return_config
+            # is set — which we never do. cast pins it to the pair we unpack so
+            # the typed mlx_lm union doesn't trip the strict gate.
+            self._model, self._tokenizer = cast(Tuple[Any, Any], load(self.model_id))
         return self._model, self._tokenizer
 
     def generate(self, prompt: str, max_tokens: int = 512, temperature: float = 0.4) -> str:
