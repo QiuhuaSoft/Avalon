@@ -504,8 +504,16 @@ class GameEngine:
         target_id = payload.get("target_id")
         if not target_id or not self._has_player(target_id):
             raise ValueError("Valid target_id required")
-        state.assassin_target = target_id
+        if target_id == player.id:
+            raise ValueError("Assassin cannot target themselves")
         target = self._get_player(target_id)
+        # The assassin already knows every evil teammate except Oberon, so naming
+        # one can only forfeit the game. Reject it. Oberon is intentionally
+        # excluded: the assassin cannot tell Oberon from a good player, and
+        # rejecting an Oberon shot would leak that hidden alignment.
+        if target.role in EVIL_ROLES and target.role != Role.oberon:
+            raise ValueError("Assassin cannot target a known evil teammate")
+        state.assassin_target = target_id
         if target.role == Role.merlin:
             state.winner = Alignment.evil
         else:

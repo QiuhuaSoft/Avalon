@@ -2,6 +2,24 @@
 
 ## Session Summaries
 
+### 2026-06-17T~UTC - Hardening pass: fixed LLM-parser bug, assassin guard, +57 tests
+- Found and fixed a real parsing bug: `LLMClient.extract_team/extract_say/extract_target`
+  used `\s*` after the keyword, which matches newlines — an empty `TEAM:`/`SAY:`/`TARGET:`
+  line silently captured the *next* line (e.g. a trailing `SAY:`). Switched to `[^\S\n]*`
+  (horizontal whitespace only) so a field never reaches across a line break.
+- Engine hardening: the assassin can no longer target themselves or a known evil teammate
+  (both auto-forfeit the game). Oberon is deliberately NOT guarded — the assassin can't tell
+  Oberon from a good player, so rejecting that shot would leak Oberon's alignment.
+- Frontend: the assassination dropdown now hides the assassin + known-evil teammates (uses the
+  private `visibility` data; Oberon stays listed). Mirrors the engine guard. Syntax-checked.
+- Tests grew 40 -> 97: new `test_llm_extraction.py` (parsing layer + name resolution),
+  `test_prompts.py` (every role/phase), `test_lady_of_lake.py` (timing, holder knowledge,
+  token passing, recurrence before quests 3/4), plus assassin self/teammate/Oberon engine cases.
+  `started_engine` now seeds the Lady holder like real `start_game`.
+- Cleaned all 12 ruff errors in `scripts/` (import order + line length). Whole repo is ruff-clean;
+  pytest green in ~0.25s. Wet-tested: booted a local server, all-bot game ran to game_over, no
+  `quest_vote` leaked into the public event log.
+
 ### 2026-06-11T~UTC - Landed WIP (secrecy + hardening) and added the test suite
 - Finished and committed the in-progress batch: `is_local_request` proxy-header hardening
   (tunneled requests no longer count as localhost), ballot secrecy (`public_state(viewer_id)`
@@ -25,6 +43,14 @@
 - Committed and pushed to main: ae76d7f
 
 ## Key Findings
+
+### LLM output parser (bot/llm.py)
+- Field extractors must separate the keyword from its value with `[^\S\n]*` (horizontal
+  whitespace), NOT `\s*`. `\s` includes `\n`, so an empty `TEAM:`/`SAY:`/`TARGET:` line will
+  greedily skip the newline and capture the following line as the value. Multi-field replies
+  (`SAY:` then `TEAM:` on the next line) make this easy to hit.
+- The free-text extractors use `([^\n]*)` (not `+`) so a present-but-empty field still matches
+  and is reported with the precise "line is empty" error rather than "no line found".
 
 ### External Bot Mode Architecture
 - `AVALON_BOT_MODE=external` disables internal bot loop in `manager.py`

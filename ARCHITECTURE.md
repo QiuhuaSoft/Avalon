@@ -52,5 +52,7 @@ Single-process FastAPI app hosting one Avalon game at a time, played by humans
 
 `tests/` runs against the working tree (editable install): rules engine, ballot secrecy
 (engine and HTTP), localhost/proxy detection, token auth, bot deferral/no-spam loop,
-full bot games, and storage. `tests/conftest.py` forces heuristic mode and a temp DB
-before `avalon.config` is imported.
+full bot games, storage, the Lady of the Lake flow (timing, holder knowledge, token
+passing), the LLM-output parsing layer (`LLMClient.extract_*` and name resolution), and
+the per-role/per-phase prompt builders. `tests/conftest.py` forces heuristic mode and a
+temp DB before `avalon.config` is imported, so no model is ever loaded.

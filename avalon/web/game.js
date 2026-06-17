@@ -509,8 +509,18 @@ function renderActionMenu(state, privateState) {
       actionPanelEl.innerHTML = "<p class=\"hint\">Waiting for the assassin.</p>";
       return;
     }
+    // The assassin and their known evil teammates can never be Merlin, so
+    // offering them only invites an accidental game-losing shot (the engine
+    // rejects these targets too). Oberon stays in the list: it reads as
+    // "unknown" to the assassin, and hiding it would leak that alignment.
+    const knownEvil = new Set(
+      (privateState.visibility || [])
+        .filter((entry) => entry.alignment_hint === "evil")
+        .map((entry) => entry.id),
+    );
     const select = document.createElement("select");
     state.players.forEach((p) => {
+      if (p.id === playerId || knownEvil.has(p.id)) return;
       const opt = document.createElement("option");
       opt.value = p.id;
       opt.textContent = p.name;

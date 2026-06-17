@@ -2,9 +2,9 @@
 """Analyze the Avalon-NLU dataset to extract dialogue patterns for bot training."""
 
 import json
-from pathlib import Path
 from collections import defaultdict
-from typing import Dict, List, Any
+from pathlib import Path
+from typing import Any, Dict, List
 
 DATASET_PATH = Path("/Users/discordwell/Projects/Avalon-NLU/dataset")
 
@@ -133,17 +133,20 @@ def main():
         print(f"  {strategy}: {len(msgs)} messages")
 
     # Print example messages
-    print_examples(stats, "MERLIN EXAMPLES", stats["messages_by_role"].get("merlin", []), 8)
-    print_examples(stats, "EVIL (MORGANA) EXAMPLES", stats["messages_by_role"].get("morgana", []), 8)
-    print_examples(stats, "EVIL (ASSASSIN) EXAMPLES", stats["messages_by_role"].get("assassin", []), 8)
-    print_examples(stats, "PERCIVAL EXAMPLES", stats["messages_by_role"].get("percival", []), 5)
+    by_role = stats["messages_by_role"]
+    print_examples(stats, "MERLIN EXAMPLES", by_role.get("merlin", []), 8)
+    print_examples(stats, "EVIL (MORGANA) EXAMPLES", by_role.get("morgana", []), 8)
+    print_examples(stats, "EVIL (ASSASSIN) EXAMPLES", by_role.get("assassin", []), 8)
+    print_examples(stats, "PERCIVAL EXAMPLES", by_role.get("percival", []), 5)
 
     # Print deception examples
-    print_examples(stats, "DECEPTION: OMISSION", stats["deception_strategies"].get("omission", []), 8)
-    print_examples(stats, "DECEPTION: INFLUENCE", stats["deception_strategies"].get("influence", []), 8)
+    deception = stats["deception_strategies"]
+    print_examples(stats, "DECEPTION: OMISSION", deception.get("omission", []), 8)
+    print_examples(stats, "DECEPTION: INFLUENCE", deception.get("influence", []), 8)
 
     # Print logical deduction examples (most strategic)
-    print_examples(stats, "LOGICAL DEDUCTION (Most Strategic)", stats["persuasion_strategies"].get("logical deduction", []), 10)
+    deduction = stats["persuasion_strategies"].get("logical deduction", [])
+    print_examples(stats, "LOGICAL DEDUCTION (Most Strategic)", deduction, 10)
 
 
 if __name__ == "__main__":

@@ -47,8 +47,9 @@ Server runs at `http://0.0.0.0:8010`.
 python -m pytest
 ```
 
-The suite covers the rules engine, ballot secrecy, localhost/token auth, bot deferral,
-and storage. It runs with heuristic bots against a temporary database — no LLM needed.
+The suite covers the rules engine, ballot secrecy, localhost/token auth, the Lady of the
+Lake flow, bot deferral, LLM-output parsing/prompt building, and storage. It runs with
+heuristic bots against a temporary database — no LLM needed.
 
 ## GUI
 

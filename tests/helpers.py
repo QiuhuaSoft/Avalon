@@ -68,6 +68,10 @@ async def started_engine(
     state.leader_index = 0
     state.quest_number = 1
     state.proposal_attempts = 0
+    # Mirror start_game's Lady-of-the-Lake setup so the holder is real.
+    state.lady_holder_id = state.players[0].id if lady_of_lake else None
+    state.lady_last_used_quest = None
+    state.lady_history = []
     return engine
 
 

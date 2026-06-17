@@ -154,6 +154,65 @@ def test_third_success_triggers_assassination_and_merlin_hit_decides():
     asyncio.run(scenario("p2", Alignment.loyal))
 
 
+def test_assassin_cannot_target_self_or_evil_teammate():
+    async def scenario():
+        # ROLES_7 order: p1 Merlin, p5 Assassin, p6 Morgana, p7 Minion (evil).
+        engine = await started_engine(ROLES_7)
+        engine.state.success_count = 2
+        team = ["p1", "p2"]  # 7-player quest 1 needs a team of 2
+        await propose(engine, team)
+        await vote_team(engine, {p.id: True for p in engine.state.players})
+        await run_quest(engine, {pid: True for pid in team})
+        assert engine.state.phase == Phase.assassination
+
+        # The assassin (p5) may not throw the game on itself...
+        with pytest.raises(ValueError, match="cannot target themselves"):
+            await engine.apply_action("p5", "assassinate", {"target_id": "p5"})
+        # ...nor on a known evil teammate (Morgana p6 / Minion p7).
+        with pytest.raises(ValueError, match="evil teammate"):
+            await engine.apply_action("p5", "assassinate", {"target_id": "p6"})
+        with pytest.raises(ValueError, match="evil teammate"):
+            await engine.apply_action("p5", "assassinate", {"target_id": "p7"})
+
+        # The game is untouched: still awaiting a real shot.
+        assert engine.state.phase == Phase.assassination
+        assert engine.state.winner is None
+
+        # A legitimate shot at Merlin (p1) still resolves normally.
+        await engine.apply_action("p5", "assassinate", {"target_id": "p1"})
+        assert engine.state.phase == Phase.game_over
+        assert engine.state.winner == Alignment.evil
+
+    asyncio.run(scenario())
+
+
+def test_assassin_may_target_oberon_without_leaking_alignment():
+    """Oberon is hidden from the assassin, so shooting Oberon must be allowed.
+
+    Rejecting it would reveal Oberon's evil alignment; instead the shot simply
+    misses (Oberon is not Merlin) and good wins.
+    """
+
+    async def scenario():
+        roles = [
+            Role.merlin,
+            Role.percival,
+            Role.loyal_servant,
+            Role.loyal_servant,
+            Role.assassin,
+            Role.oberon,
+        ]
+        engine = await started_engine(roles)  # p5 assassin, p6 oberon
+        engine.state.phase = Phase.assassination
+        engine.state.success_count = 3
+        await engine.apply_action("p5", "assassinate", {"target_id": "p6"})
+        state = engine.state
+        assert state.phase == Phase.game_over
+        assert state.winner == Alignment.loyal  # Oberon is not Merlin
+
+    asyncio.run(scenario())
+
+
 def test_third_failed_quest_ends_game_for_evil():
     async def scenario():
         engine = await started_engine(ROLES_5)

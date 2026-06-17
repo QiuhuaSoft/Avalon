@@ -87,8 +87,10 @@ class LLMClient:
     @staticmethod
     def extract_team(text: str) -> ExtractionResult:
         """Extract team names from 'TEAM: Name1, Name2' format."""
-        # Look for TEAM: followed by comma-separated names
-        match = re.search(r"TEAM:\s*([^\n]+)", text, re.IGNORECASE)
+        # Look for TEAM: followed by comma-separated names. The separator is
+        # horizontal whitespace only ([^\S\n]) so an empty "TEAM:" line cannot
+        # reach across the newline and capture the following line as the roster.
+        match = re.search(r"TEAM:[^\S\n]*([^\n]*)", text, re.IGNORECASE)
         if not match:
             return ExtractionResult(success=False, value=None, error="No 'TEAM:' line found")
 
@@ -130,7 +132,9 @@ class LLMClient:
     @staticmethod
     def extract_say(text: str) -> ExtractionResult:
         """Extract chat message from 'SAY: message' format."""
-        match = re.search(r"SAY:\s*([^\n]+)", text, re.IGNORECASE)
+        # Horizontal-whitespace separator keeps an empty "SAY:" line from
+        # capturing whatever the model wrote on the next line.
+        match = re.search(r"SAY:[^\S\n]*([^\n]*)", text, re.IGNORECASE)
         if not match:
             return ExtractionResult(success=False, value=None, error="No 'SAY:' line found")
 
@@ -166,7 +170,9 @@ class LLMClient:
     @staticmethod
     def extract_target(text: str, keyword: str = "TARGET") -> ExtractionResult:
         """Extract target name from 'TARGET: Name' or 'INSPECT: Name' format."""
-        pattern = rf"{keyword}:\s*([^\n]+)"
+        # Horizontal-whitespace separator: an empty "TARGET:"/"INSPECT:" line
+        # must not capture the next line (e.g. a trailing SAY) as the target.
+        pattern = rf"{keyword}:[^\S\n]*([^\n]*)"
         match = re.search(pattern, text, re.IGNORECASE)
         if not match:
             return ExtractionResult(success=False, value=None, error=f"No '{keyword}:' line found")

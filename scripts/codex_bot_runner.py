@@ -54,7 +54,9 @@ def ensure_codex_available(codex_cwd: str, model: str, reasoning_effort: str, ti
     if not shutil.which("codex"):
         raise RuntimeError("codex CLI not found in PATH")
 
-    with tempfile.NamedTemporaryFile(prefix="avalon_codex_probe_", suffix=".txt", delete=False) as fh:
+    with tempfile.NamedTemporaryFile(
+        prefix="avalon_codex_probe_", suffix=".txt", delete=False
+    ) as fh:
         output_path = fh.name
 
     cmd = [
@@ -102,7 +104,8 @@ def ensure_external_mode(base_url: str) -> None:
     error = str(body.get("error", ""))
     if "external bot mode not enabled" in error:
         raise RuntimeError(
-            "server is not running with AVALON_BOT_MODE=external; external bot controller cannot act"
+            "server is not running with AVALON_BOT_MODE=external; "
+            "external bot controller cannot act"
         )
     if status in (200, 400, 404):
         return
@@ -138,7 +141,9 @@ def parse_bool(value: Any) -> bool | None:
     return None
 
 
-def normalize_decision(context: Dict[str, Any], raw: Dict[str, Any]) -> Tuple[str, str, Dict[str, Any]]:
+def normalize_decision(
+    context: Dict[str, Any], raw: Dict[str, Any]
+) -> Tuple[str, str, Dict[str, Any]]:
     phase = context.get("phase")
     name_to_id = context.get("name_to_id") or {}
     if not isinstance(name_to_id, dict):
@@ -312,7 +317,11 @@ def decide_with_codex(
                 f"Your previous output was invalid: {last_error}\n"
                 "Retry now with valid JSON only."
             )
-            log("WARN", f"invalid model output for {context.get('bot_id')} (attempt {attempt}/{retries})")
+            log(
+                "WARN",
+                f"invalid model output for {context.get('bot_id')} "
+                f"(attempt {attempt}/{retries})",
+            )
 
     raise RuntimeError(f"could not parse valid decision after {retries} attempts: {last_error}")
 
@@ -357,7 +366,8 @@ def run_loop(args: argparse.Namespace) -> int:
             status, context = api_request(args.base_url, "GET", f"/game/bot_context/{encoded_id}")
             if status != 200:
                 log("WARN", f"skipping bot {bot_id}: HTTP {status} {context}")
-                if args.strict_fail and "external bot mode not enabled" in str(context.get("error", "")):
+                error_text = str(context.get("error", ""))
+                if args.strict_fail and "external bot mode not enabled" in error_text:
                     return 1
                 continue
 
@@ -402,7 +412,9 @@ def parse_args() -> argparse.Namespace:
         help="Codex model_reasoning_effort value (low, medium, high).",
     )
     parser.add_argument("--codex-cwd", default=str(root))
-    parser.add_argument("--poll-interval", type=float, default=float(os.getenv("AVALON_BOT_POLL", "0.5")))
+    parser.add_argument(
+        "--poll-interval", type=float, default=float(os.getenv("AVALON_BOT_POLL", "0.5"))
+    )
     parser.add_argument(
         "--codex-timeout",
         type=int,
