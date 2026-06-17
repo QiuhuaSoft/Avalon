@@ -3,7 +3,7 @@ from __future__ import annotations
 import asyncio
 import random
 import uuid
-from typing import Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Optional, Tuple, overload
 
 from .models import (
     Alignment,
@@ -86,7 +86,15 @@ DEFAULT_ROLE_SETS = {
 }
 
 
-def alignment_for(role: Role) -> Alignment:
+@overload
+def alignment_for(role: Role) -> Alignment: ...
+@overload
+def alignment_for(role: None) -> None: ...
+def alignment_for(role: Optional[Role]) -> Optional[Alignment]:
+    # An unassigned role has no alignment. Returning None (rather than defaulting
+    # to loyal) keeps callers from mislabelling a role-less player as good.
+    if role is None:
+        return None
     if role in EVIL_ROLES:
         return Alignment.evil
     return Alignment.loyal
@@ -173,7 +181,9 @@ class GameEngine:
             self._emit("game_started", {})
             return state
 
-    async def apply_action(self, player_id: str, action_type: str, payload: Dict) -> GameState:
+    async def apply_action(
+        self, player_id: str, action_type: str, payload: Dict[str, Any]
+    ) -> GameState:
         async with self._lock:
             state = self.state
             player = self._get_player(player_id)
@@ -324,7 +334,7 @@ class GameEngine:
         }
         return state
 
-    def private_state_for(self, player_id: str) -> Dict:
+    def private_state_for(self, player_id: str) -> Dict[str, Any]:
         state = self.public_state(viewer_id=player_id)
         player = self._get_player(player_id)
         for p in state.players:
@@ -348,7 +358,9 @@ class GameEngine:
         for player, role in zip(state.players, roles):
             player.role = role
 
-    def _handle_propose(self, state: GameState, player: Player, payload: Dict) -> GameState:
+    def _handle_propose(
+        self, state: GameState, player: Player, payload: Dict[str, Any]
+    ) -> GameState:
         if state.phase != Phase.team_proposal:
             raise ValueError("Not in team proposal phase")
         leader = state.players[state.leader_index]
@@ -375,7 +387,7 @@ class GameEngine:
             state.phase = Phase.team_vote
         return state
 
-    def _handle_vote(self, state: GameState, player: Player, payload: Dict) -> GameState:
+    def _handle_vote(self, state: GameState, player: Player, payload: Dict[str, Any]) -> GameState:
         if state.phase != Phase.team_vote:
             raise ValueError("Not in team vote phase")
         approve = payload.get("approve")
@@ -409,7 +421,9 @@ class GameEngine:
                 state.leader_index = (state.leader_index + 1) % len(state.players)
         return state
 
-    def _handle_quest_vote(self, state: GameState, player: Player, payload: Dict) -> GameState:
+    def _handle_quest_vote(
+        self, state: GameState, player: Player, payload: Dict[str, Any]
+    ) -> GameState:
         if state.phase != Phase.quest:
             raise ValueError("Not in quest phase")
         if player.id not in state.proposed_team:
@@ -473,7 +487,7 @@ class GameEngine:
             state.phase = Phase.team_proposal
         return state
 
-    def _handle_lady(self, state: GameState, player: Player, payload: Dict) -> GameState:
+    def _handle_lady(self, state: GameState, player: Player, payload: Dict[str, Any]) -> GameState:
         if state.phase != Phase.lady_of_lake:
             raise ValueError("Not in Lady of the Lake phase")
         if not state.config.lady_of_lake:
@@ -496,7 +510,9 @@ class GameEngine:
         self._emit("lady_peek", {"holder_id": player.id, "target_id": target_id})
         return state
 
-    def _handle_assassinate(self, state: GameState, player: Player, payload: Dict) -> GameState:
+    def _handle_assassinate(
+        self, state: GameState, player: Player, payload: Dict[str, Any]
+    ) -> GameState:
         if state.phase != Phase.assassination:
             raise ValueError("Not in assassination phase")
         if player.role != Role.assassin:
@@ -594,11 +610,11 @@ class GameEngine:
                 )
         return knowledge
 
-    def _visibility_for(self, player_id: str) -> List[Dict]:
+    def _visibility_for(self, player_id: str) -> List[Dict[str, Any]]:
         player = self._get_player(player_id)
-        visibility: List[Dict] = []
+        visibility: List[Dict[str, Any]] = []
         for p in self.state.players:
-            entry = {
+            entry: Dict[str, Any] = {
                 "id": p.id,
                 "name": p.name,
                 "alignment_hint": "unknown",
@@ -657,7 +673,7 @@ class GameEngine:
             raise ValueError("Invalid player token")
         return player_id
 
-    def _emit(self, event_type: str, payload: Dict) -> None:
+    def _emit(self, event_type: str, payload: Dict[str, Any]) -> None:
         self._store.append(Event(type=event_type, payload=payload))
 
     def _has_player(self, player_id: str) -> bool:

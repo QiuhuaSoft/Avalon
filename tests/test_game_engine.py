@@ -14,11 +14,20 @@ from helpers import (
     vote_team,
 )
 
-from avalon.game import DEFAULT_ROLE_SETS, EVIL_ROLES, team_size
+from avalon.game import DEFAULT_ROLE_SETS, EVIL_ROLES, alignment_for, team_size
 from avalon.models import Alignment, Phase, Role
 
 # Official The Resistance: Avalon evil-player counts per table size.
 OFFICIAL_EVIL_COUNTS = {5: 2, 6: 2, 7: 3, 8: 3, 9: 3, 10: 4}
+
+
+def test_alignment_for_maps_every_role_and_rejects_none():
+    assert all(alignment_for(role) == Alignment.evil for role in EVIL_ROLES)
+    good_roles = [r for r in Role if r not in EVIL_ROLES]
+    assert good_roles, "expected at least one non-evil role"
+    assert all(alignment_for(role) == Alignment.loyal for role in good_roles)
+    # A role-less player has no alignment; it must not silently default to loyal.
+    assert alignment_for(None) is None
 
 
 def test_default_role_sets_match_official_counts():

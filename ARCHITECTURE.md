@@ -8,6 +8,9 @@ Single-process FastAPI app hosting one Avalon game at a time, played by humans
 - `avalon/api.py` — HTTP/WebSocket surface. Owns the module-level singletons:
   `EventStore`, `GameEngine`, `BotManager`, `TunnelManager`. A lifespan task polls
   `BotManager.maybe_act()` every 0.5s so bots catch up whenever no human action is pending.
+  Route guards signal auth/validation failures by raising `HTTPException`; exception
+  handlers reshape both it and engine `ValueError`s to `{"error": ...}` JSON (the shape
+  the web clients read). FastAPI's own routing/validation errors (404/422) are untouched.
 - `avalon/game.py` — rules engine. Pure-ish state machine over `GameState`
   (`avalon/models.py`): proposals, team votes, quests, Lady of the Lake, assassination,
   hammer and five-rejection rules. Emits events to the store; guarded by an asyncio lock.
@@ -56,3 +59,7 @@ full bot games, storage, the Lady of the Lake flow (timing, holder knowledge, to
 passing), the LLM-output parsing layer (`LLMClient.extract_*` and name resolution), and
 the per-role/per-phase prompt builders. `tests/conftest.py` forces heuristic mode and a
 temp DB before `avalon.config` is imported, so no model is ever loaded.
+
+`tests/test_typing.py` runs `mypy avalon` as a regression gate: pyproject sets
+`[tool.mypy] strict = true`, and the package is kept clean under it (the test skips
+when mypy is not installed).

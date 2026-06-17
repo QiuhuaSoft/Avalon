@@ -2,6 +2,28 @@
 
 ## Session Summaries
 
+### 2026-06-17T~UTC - Type-safety pass: made package mypy --strict clean (75 -> 0)
+- pyproject declared `[tool.mypy] strict = true` but `mypy avalon` reported **75 errors** —
+  the config was never honored. Drove it to **0 errors** across all 13 modules.
+- Mechanical bulk: widened bare `Dict` -> `Dict[str, Any]` on every engine handler/payload,
+  bot-policy decision return, and visibility builder; added `mlx_lm.*` ignore-missing-imports
+  override (the lib ships no stubs); typed `LLMClient.generate`'s local and the `value_error`
+  handler. Wrapped the now-too-long signatures to stay ruff-clean (line-length 100).
+- Real fix surfaced by the type errors: `alignment_for(None)` silently returned
+  `Alignment.loyal`. Converted to `@overload`s returning `Optional[Alignment]` so a role-less
+  player maps to `None`, not "good". All call sites verified safe (every `.value` is role-guarded;
+  comparisons only flip in states unreachable before roles are assigned). Latent, but a footgun.
+- api.py refactor: ~26 `return JSONResponse(status_code=N, content={"error": M})` guards became
+  idiomatic `raise HTTPException(N, M)`, with a new `@app.exception_handler(HTTPException)` that
+  reshapes back to `{"error": ...}` (the shape `web/*.js` read via `body.error`). Keyed on
+  `fastapi.HTTPException`, so Starlette's 404/405 and 422 validation bodies are untouched.
+- Removed dead `Phase.quest_result` (never set/read anywhere).
+- Tests 97 -> 100: `alignment_for` mapping incl. None; auth-error JSON shape; and
+  `tests/test_typing.py` runs `mypy avalon` as a regression gate (subprocess, skips if absent).
+- Verified: ruff clean, mypy clean, 100 pass in ~0.5s. Wet-tested a real all-bot heuristic game
+  to game_over (5 quests, Lady fired 3x, no `quest_vote` leaked); live error paths return the
+  right status+shape and 404 still `{"detail":...}`. Two parallel code-review agents: no findings.
+
 ### 2026-06-17T~UTC - Hardening pass: fixed LLM-parser bug, assassin guard, +57 tests
 - Found and fixed a real parsing bug: `LLMClient.extract_team/extract_say/extract_target`
   used `\s*` after the keyword, which matches newlines — an empty `TEAM:`/`SAY:`/`TARGET:`

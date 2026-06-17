@@ -74,6 +74,14 @@ def test_localhost_only_endpoints_reject_remote_clients():
     assert remote.post("/game/players/remove_last_human").status_code == 403
 
 
+def test_auth_failures_use_the_error_json_shape():
+    """Guards expose failures as {"error": ...}; the web clients read body.error."""
+    create_game()
+    resp = remote.post("/game/start")
+    assert resp.status_code == 403
+    assert resp.json() == {"error": "localhost only"}
+
+
 def test_proxied_loopback_requests_are_treated_as_remote():
     """cloudflared connects from 127.0.0.1, so forwarding headers must matter."""
     create_game()

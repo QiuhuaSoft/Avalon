@@ -3,7 +3,7 @@ from __future__ import annotations
 import logging
 import random
 import re
-from typing import Dict, List, Optional
+from typing import Any, Dict, List, Optional
 
 from ..config import SETTINGS
 from ..game import alignment_for, team_size
@@ -21,7 +21,7 @@ class BotPolicy:
     def __init__(self) -> None:
         self._llm = LLMClient()
 
-    def decide(self, state: GameState, player: Player, knowledge: List[str]) -> Dict:
+    def decide(self, state: GameState, player: Player, knowledge: List[str]) -> Dict[str, Any]:
         """Main decision method - tries LLM first, falls back to heuristic."""
         if SETTINGS.bot_mode != "llm":
             return self._heuristic(state, player)
@@ -58,7 +58,9 @@ class BotPolicy:
 
     # --- Phase-specific decision methods ---
 
-    def _decide_team_proposal(self, prompt: str, state: GameState, player: Player) -> Dict:
+    def _decide_team_proposal(
+        self, prompt: str, state: GameState, player: Player
+    ) -> Dict[str, Any]:
         """Handle team proposal with LLM + validation + fallback."""
         required_size = team_size(state.config.player_count, state.quest_number)
 
@@ -104,7 +106,7 @@ class BotPolicy:
         logger.warning(f"LLM team proposal failed: {result.error}, using heuristic")
         return self._heuristic(state, player)
 
-    def _decide_team_vote(self, prompt: str, state: GameState, player: Player) -> Dict:
+    def _decide_team_vote(self, prompt: str, state: GameState, player: Player) -> Dict[str, Any]:
         """Handle team vote with LLM + fallback."""
         def extractor(text: str) -> ExtractionResult:
             vote_result = LLMClient.extract_vote(text)
@@ -128,7 +130,7 @@ class BotPolicy:
         logger.warning(f"LLM vote failed: {result.error}, using heuristic")
         return self._heuristic(state, player)
 
-    def _decide_quest(self, prompt: str, state: GameState, player: Player) -> Dict:
+    def _decide_quest(self, prompt: str, state: GameState, player: Player) -> Dict[str, Any]:
         """Handle quest vote with LLM + fallback."""
         def extractor(text: str) -> ExtractionResult:
             quest_result = LLMClient.extract_quest(text)
@@ -152,7 +154,9 @@ class BotPolicy:
         logger.warning(f"LLM quest vote failed: {result.error}, using heuristic")
         return self._heuristic(state, player)
 
-    def _decide_assassination(self, prompt: str, state: GameState, player: Player) -> Dict:
+    def _decide_assassination(
+        self, prompt: str, state: GameState, player: Player
+    ) -> Dict[str, Any]:
         """Handle assassination with LLM + validation + fallback."""
         # Defer to human evil teammates if present
         if self._has_human_evil_player(state):
@@ -203,7 +207,7 @@ class BotPolicy:
         logger.warning(f"LLM assassination failed: {result.error}, using heuristic")
         return self._heuristic(state, player)
 
-    def _decide_lady_of_lake(self, prompt: str, state: GameState, player: Player) -> Dict:
+    def _decide_lady_of_lake(self, prompt: str, state: GameState, player: Player) -> Dict[str, Any]:
         """Handle Lady of the Lake with LLM + validation + fallback."""
 
         def extractor(text: str) -> ExtractionResult:
@@ -241,7 +245,7 @@ class BotPolicy:
 
     # --- Helper methods ---
 
-    def _deferred_assassination(self, state: GameState, player: Player) -> Dict:
+    def _deferred_assassination(self, state: GameState, player: Player) -> Dict[str, Any]:
         """Bot assassin with a human evil teammate: ask once, then follow their call.
 
         Returns an assassinate action once a human evil teammate's chat names
@@ -313,7 +317,7 @@ class BotPolicy:
 
         return None
 
-    def _heuristic(self, state: GameState, player: Player) -> Dict:
+    def _heuristic(self, state: GameState, player: Player) -> Dict[str, Any]:
         """Fallback heuristic decision-making. Silent - no chat messages."""
         if state.phase == Phase.team_proposal:
             size = team_size(state.config.player_count, state.quest_number)

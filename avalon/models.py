@@ -16,7 +16,6 @@ class Phase(str, Enum):
     team_proposal = "team_proposal"
     team_vote = "team_vote"
     quest = "quest"
-    quest_result = "quest_result"
     lady_of_lake = "lady_of_lake"
     assassination = "assassination"
     game_over = "game_over"

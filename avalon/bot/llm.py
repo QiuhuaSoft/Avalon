@@ -37,7 +37,7 @@ class LLMClient:
         from mlx_lm.sample_utils import make_sampler
 
         sampler = make_sampler(temp=temperature)
-        text = generate(
+        text: str = generate(
             model,
             tokenizer,
             prompt=prompt,

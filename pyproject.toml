@@ -36,3 +36,8 @@ select = ["E", "F", "I", "N", "W"]
 [tool.mypy]
 python_version = "3.11"
 strict = true
+
+# mlx-lm ships no type stubs; don't fail strict mode on its untyped imports.
+[[tool.mypy.overrides]]
+module = ["mlx_lm.*"]
+ignore_missing_imports = true

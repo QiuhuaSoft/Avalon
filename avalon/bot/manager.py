@@ -46,7 +46,7 @@ class BotManager:
             await self.engine.apply_action(bot_id, "chat", {"message": message})
 
         # Then perform the actual action
-        if action_type in (None, "wait"):
+        if action_type is None or action_type == "wait":
             return bool(message)
         await self.engine.apply_action(bot_id, action_type, payload)
         return True
