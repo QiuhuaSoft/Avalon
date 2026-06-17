@@ -24,7 +24,12 @@ Single-process FastAPI app hosting one Avalon game at a time, played by humans
   builds the LLM context. Bots receive no secret ballot data.
 - `avalon/tunnel.py` — optional cloudflared quick-tunnel for remote players.
 - `avalon/web/` — static frontend (control panel, lobby, game view) polling
-  `/game/state` and `/game/events`.
+  `/game/state` and `/game/events`. This is the **output-encoding boundary**:
+  player names are attacker-controlled (any remote player names themselves) and
+  the server stores/serves them verbatim, so the frontend must render names with
+  `textContent` (or DOM nodes), never by interpolating them into `innerHTML`.
+  The host renders these names in a localhost-privileged page, so an unescaped
+  name is a stored-XSS → privilege-escalation vector.
 
 ## Access tiers
 

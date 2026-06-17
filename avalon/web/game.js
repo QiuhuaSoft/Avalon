@@ -40,6 +40,13 @@ if (!playerId && !playerToken) {
   roleRevealEl.textContent = "Pick a seat first.";
 }
 
+function tagDiv(text) {
+  const div = document.createElement("div");
+  div.className = "tag";
+  div.textContent = text;
+  return div;
+}
+
 function renderPlayerTable(visibility = [], ladyHolderId) {
   playerTableEl.innerHTML = "";
   visibility.forEach((entry) => {
@@ -52,8 +59,15 @@ function renderPlayerTable(visibility = [], ladyHolderId) {
       : entry.alignment_hint === "merlin_candidate"
         ? "Merlin?"
         : "Unknown";
-    const ladyTag = entry.id === ladyHolderId ? "<div class=\"tag\">Lady</div>" : "";
-    card.innerHTML = `${ladyTag}<div class=\"tag\">${tag}</div><strong>${entry.name}</strong>`;
+    if (entry.id === ladyHolderId) card.appendChild(tagDiv("Lady"));
+    card.appendChild(tagDiv(tag));
+    // Player names are attacker-controlled: any remote player picks their own
+    // name. Build the node with textContent (never innerHTML) so a name like
+    // "<img src=x onerror=...>" renders as inert text instead of executing in
+    // the host's privileged (localhost) browser session.
+    const name = document.createElement("strong");
+    name.textContent = entry.name;
+    card.appendChild(name);
     playerTableEl.appendChild(card);
   });
 }
@@ -338,16 +352,26 @@ function renderProposalMatrix(state, events) {
   });
 }
 
+function actionHint(text) {
+  // Render a single hint line via textContent (never innerHTML) so any
+  // interpolated player name stays inert text rather than active markup.
+  actionPanelEl.innerHTML = "";
+  const p = document.createElement("p");
+  p.className = "hint";
+  p.textContent = text;
+  actionPanelEl.appendChild(p);
+}
+
 function renderActionMenu(state, privateState) {
   actionPanelEl.innerHTML = "";
   if (!state) {
-    actionPanelEl.innerHTML = "<p class=\"hint\">No active game.</p>";
+    actionHint("No active game.");
     return;
   }
 
   const player = state.players.find((p) => p.id === playerId);
   if (!player) {
-    actionPanelEl.innerHTML = "<p class=\"hint\">Player not found. Return to /play.</p>";
+    actionHint("Player not found. Return to /play.");
     return;
   }
 
@@ -454,7 +478,7 @@ function renderActionMenu(state, privateState) {
 
   if (phase === "team_proposal") {
     if (leader.id !== playerId) {
-      actionPanelEl.innerHTML = `<p class=\"hint\">Waiting for ${leader.name} to propose a team.</p>`;
+      actionHint(`Waiting for ${leader.name} to propose a team.`);
       return;
     }
     const size = teamSize(state);
@@ -464,7 +488,7 @@ function renderActionMenu(state, privateState) {
 
   if (phase === "team_vote") {
     if (state.team_votes && state.team_votes[playerId] !== undefined) {
-      actionPanelEl.innerHTML = "<p class=\"hint\">Vote submitted. Waiting on others.</p>";
+      actionHint("Vote submitted. Waiting on others.");
       return;
     }
     addButton("Approve team", () => submitAction("vote_team", { approve: true }));
@@ -474,11 +498,11 @@ function renderActionMenu(state, privateState) {
 
   if (phase === "quest") {
     if (!state.proposed_team.includes(playerId)) {
-      actionPanelEl.innerHTML = "<p class=\"hint\">Quest in progress. You are not on the team.</p>";
+      actionHint("Quest in progress. You are not on the team.");
       return;
     }
     if (state.quest_votes && state.quest_votes[playerId] !== undefined) {
-      actionPanelEl.innerHTML = "<p class=\"hint\">Vote submitted.</p>";
+      actionHint("Vote submitted.");
       return;
     }
     addButton("Quest success", () => submitAction("quest_vote", { success: true }));
@@ -488,7 +512,7 @@ function renderActionMenu(state, privateState) {
 
   if (phase === "lady_of_lake") {
     if (state.lady_holder_id !== playerId) {
-      actionPanelEl.innerHTML = "<p class=\"hint\">Waiting for the Lady of the Lake.</p>";
+      actionHint("Waiting for the Lady of the Lake.");
       return;
     }
     const select = document.createElement("select");
@@ -506,7 +530,7 @@ function renderActionMenu(state, privateState) {
 
   if (phase === "assassination") {
     if (privateState.role !== "Assassin") {
-      actionPanelEl.innerHTML = "<p class=\"hint\">Waiting for the assassin.</p>";
+      actionHint("Waiting for the assassin.");
       return;
     }
     // The assassin and their known evil teammates can never be Merlin, so
@@ -532,11 +556,11 @@ function renderActionMenu(state, privateState) {
   }
 
   if (phase === "game_over") {
-    actionPanelEl.innerHTML = `<p class=\"hint\">Game over. Winner: ${state.winner}</p>`;
+    actionHint(`Game over. Winner: ${state.winner}`);
     return;
   }
 
-  actionPanelEl.innerHTML = "<p class=\"hint\">Waiting for next phase.</p>";
+  actionHint("Waiting for next phase.");
 }
 
 function teamSize(state) {
