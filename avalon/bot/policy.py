@@ -225,6 +225,13 @@ class BotPolicy:
                 return ExtractionResult(
                     success=False, value=None, error="Cannot inspect yourself"
                 )
+            # Can't re-inspect a player who has already held the Lady.
+            if target_id in self._prior_lady_holders(state):
+                return ExtractionResult(
+                    success=False,
+                    value=None,
+                    error=f"'{target_result.value}' already held the Lady; pick someone else",
+                )
             say_result = LLMClient.extract_say(text)
             return ExtractionResult(
                 success=True, value={"target_id": target_id, "say": say_result.value}
@@ -354,7 +361,11 @@ class BotPolicy:
             return {"action_type": "assassinate", "payload": {"target_id": target_id}}
 
         if state.phase == Phase.lady_of_lake and state.lady_holder_id == player.id:
-            candidates = [p.id for p in state.players if p.id != player.id]
+            # The Lady cannot be re-used on a player who has already held it.
+            prior = self._prior_lady_holders(state)
+            candidates = [
+                p.id for p in state.players if p.id != player.id and p.id not in prior
+            ]
             return {"action_type": "lady_peek", "payload": {"target_id": random.choice(candidates)}}
 
         return {"action_type": "chat", "payload": {"message": "pass"}}
@@ -362,6 +373,11 @@ class BotPolicy:
     @staticmethod
     def _evil_ids(state: GameState) -> List[str]:
         return [p.id for p in state.players if p.role and alignment_for(p.role) == Alignment.evil]
+
+    @staticmethod
+    def _prior_lady_holders(state: GameState) -> set[str]:
+        """IDs that have already held the Lady token (illegal peek targets)."""
+        return {entry["holder_id"] for entry in state.lady_history}
 
     @staticmethod
     def _has_human_evil_player(state: GameState) -> bool:

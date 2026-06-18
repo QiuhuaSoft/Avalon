@@ -91,6 +91,35 @@ def test_lady_recurs_before_quest_four_with_the_new_holder():
     asyncio.run(scenario())
 
 
+def test_lady_cannot_target_a_previous_holder():
+    async def scenario():
+        engine = await started_engine(ROLES_7, lady_of_lake=True)
+        await _approve_and_run(engine, ["p1", "p2"], {"p1": True, "p2": True})
+        await _approve_and_run(engine, ["p1", "p2", "p3"], {"p1": True, "p2": True, "p3": True})
+        # First Lady use: p1 -> token to p5.
+        await engine.apply_action("p1", "lady_peek", {"target_id": "p5"})
+
+        # Quest 3 fails (Assassin p5) so the game continues to quest 4 and the
+        # Lady opens again, now held by p5.
+        await _approve_and_run(engine, ["p1", "p3", "p5"], {"p1": True, "p3": True, "p5": False})
+        assert engine.state.phase == Phase.lady_of_lake
+        assert engine.state.lady_holder_id == "p5"
+
+        # p1 already held the token, so the holder cannot bounce it back.
+        with pytest.raises(ValueError, match="previous Lady holder"):
+            await engine.apply_action("p5", "lady_peek", {"target_id": "p1"})
+        # The phase stays open after the rejected peek.
+        assert engine.state.phase == Phase.lady_of_lake
+        assert engine.state.lady_holder_id == "p5"
+
+        # A player who has never held the token is still a legal target.
+        await engine.apply_action("p5", "lady_peek", {"target_id": "p2"})
+        assert engine.state.lady_holder_id == "p2"
+        assert engine.state.phase == Phase.team_proposal
+
+    asyncio.run(scenario())
+
+
 def test_disabled_lady_never_opens_the_phase():
     async def scenario():
         engine = await started_engine(ROLES_7, lady_of_lake=False)

@@ -523,6 +523,12 @@ class GameEngine:
             raise ValueError("Valid target_id required")
         if target_id == player.id:
             raise ValueError("Cannot target yourself")
+        # Official rule: the Lady of the Lake may not be used on anyone who has
+        # already held it. Every past holder appears as a `holder_id` in the peek
+        # history (the current holder is caught by the self-check above), so this
+        # also stops the token bouncing back and forth between two players.
+        if any(entry["holder_id"] == target_id for entry in state.lady_history):
+            raise ValueError("Cannot target a previous Lady holder")
         target = self._get_player(target_id)
         alignment = alignment_for(target.role).value if target.role else "unknown"
         state.lady_history.append(

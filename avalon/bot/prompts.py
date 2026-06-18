@@ -197,7 +197,11 @@ def build_action_instructions(state: GameState, player: Player) -> str:
         return _assassination_instructions(player, player_names, evil_names)
 
     if state.phase == Phase.lady_of_lake and state.lady_holder_id == player.id:
-        return _lady_of_lake_instructions(player, player_names)
+        # The Lady may not be re-used on anyone who has already held it, so keep
+        # past holders out of the suggested targets the bot is shown.
+        prior_holder_ids = {entry["holder_id"] for entry in state.lady_history}
+        prior_holder_names = [p.name for p in state.players if p.id in prior_holder_ids]
+        return _lady_of_lake_instructions(player, player_names, prior_holder_names)
 
     return "No action needed. You may chat or wait."
 
@@ -323,8 +327,11 @@ Possible targets: {targets_list}
 Your response:"""
 
 
-def _lady_of_lake_instructions(player: Player, player_names: List[str]) -> str:
-    targets = [name for name in player_names if name != player.name]
+def _lady_of_lake_instructions(
+    player: Player, player_names: List[str], prior_holders: Optional[List[str]] = None
+) -> str:
+    excluded = {player.name, *(prior_holders or [])}
+    targets = [name for name in player_names if name not in excluded]
     targets_list = ", ".join(targets)
 
     return f"""=== YOUR TASK ===

@@ -150,3 +150,28 @@ def test_assassin_without_human_evil_targets_good_players_immediately():
         action = decide(state)
         assert action["action_type"] == "assassinate"
         assert action["payload"]["target_id"] in {"b3", "b4", "b5"}
+
+
+def lady_players():
+    return [
+        Player(id="p1", name="Ana", is_bot=True, role=Role.merlin),
+        Player(id="p2", name="Bea", is_bot=True, role=Role.percival),
+        Player(id="p3", name="Cy", is_bot=True, role=Role.loyal_servant),
+        Player(id="p4", name="Devi", is_bot=True, role=Role.morgana),
+        Player(id="p5", name="Esa", is_bot=True, role=Role.assassin),
+    ]
+
+
+def test_lady_heuristic_never_targets_a_previous_holder():
+    # p1 already held the Lady and passed it to p5; the engine rejects re-peeking
+    # a former holder, so the heuristic must avoid p1 (and itself) every time.
+    state = make_state(lady_players(), phase=Phase.lady_of_lake)
+    state.config.lady_of_lake = True
+    state.lady_holder_id = "p5"
+    state.lady_history = [{"holder_id": "p1", "target_id": "p5", "alignment": "evil"}]
+    policy = BotPolicy()
+    holder = next(p for p in state.players if p.id == "p5")
+    for _ in range(25):
+        action = policy.decide(state, holder, [])
+        assert action["action_type"] == "lady_peek"
+        assert action["payload"]["target_id"] in {"p2", "p3", "p4"}
