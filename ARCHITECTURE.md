@@ -17,6 +17,10 @@ Single-process FastAPI app hosting one Avalon game at a time, played by humans
   It is also the input-validation boundary: rosters must be 5–10 players with unique,
   non-empty IDs, and untrusted free text (chat messages, player names) is length-capped
   (`MAX_CHAT_LENGTH`, `MAX_NAME_LENGTH`) since it is echoed into every deep-copied snapshot.
+  Ballots are committed on first cast: a resubmitted team vote or quest card is ignored
+  (a double-click can't flip a committed vote, double-count toward resolution, or emit a
+  second ballot event), mirroring Avalon's simultaneous, final reveal. The other actions
+  are already single-shot — proposing, peeking, and assassinating each leave their phase.
 - `avalon/storage.py` — append-only SQLite event log (replay/debug). Supports `:memory:`
   (kept on one connection) for tests.
 - `avalon/bot/` — `manager.py` drives pending bots; `policy.py` decides actions

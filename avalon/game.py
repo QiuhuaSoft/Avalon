@@ -424,6 +424,12 @@ class GameEngine:
         approve = payload.get("approve")
         if not isinstance(approve, bool):
             raise ValueError("Approve must be boolean")
+        # A team ballot is committed on its first cast — Avalon votes are
+        # simultaneous and final. Ignore a resubmission so a double-click or
+        # retry cannot flip an already-committed vote or emit a second ballot
+        # event (the public log keeps exactly one team_vote per player here).
+        if player.id in state.team_votes:
+            return state
         state.team_votes[player.id] = approve
         self._emit("team_vote", {"player_id": player.id, "approve": approve})
         if len(state.team_votes) < len(state.players):
@@ -464,6 +470,11 @@ class GameEngine:
             raise ValueError("Success must be boolean")
         if player.role and alignment_for(player.role) == Alignment.loyal and not success:
             raise ValueError("Loyal players must submit success")
+        # Quest cards are committed on first submission: ignore a resubmission so
+        # a double-click cannot swap a played card or double-count toward
+        # resolution. The first card a team member plays is the one that counts.
+        if player.id in state.quest_votes:
+            return state
         state.quest_votes[player.id] = success
         self._emit("quest_vote", {"player_id": player.id, "success": success})
         if len(state.quest_votes) < len(state.proposed_team):

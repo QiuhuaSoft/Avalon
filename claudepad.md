@@ -2,6 +2,35 @@
 
 ## Session Summaries
 
+### 2026-06-18T~UTC - Commit ballots on first cast + hammer-aware tracker + matrix tests
+- Closed an engine-integrity gap in the team-proposal/voting flow. `vote_team` and
+  `quest_vote` were the only actions that allowed resubmission *within* their phase (propose/
+  lady_peek/assassinate already leave their phase, so they're single-shot). A re-vote
+  overwrote the committed secret ballot **and emitted a duplicate event** — breaking the
+  "exactly one ballot per player" invariant that `test_api.py` itself asserts
+  (`team_vote count == 5`). A double-click or a mis-click on the still-live vote buttons
+  (the UI leaves them clickable until the next 1.5s poll) silently flipped a committed vote.
+- Fix: both handlers now ignore a resubmission (`if player.id in *_votes: return state`) —
+  first cast is final, mirroring Avalon's simultaneous reveal. No legitimate flow re-votes
+  (bots drop out of `pending_actions` once they vote; the UI hides the buttons after), so
+  it's pure hardening. Evil players also can't "take back" a SUCCESS and FAIL later.
+- Frontend: `hammerText` showed a bare "Disabled" when `hammer_auto_approve` is off — exactly
+  the mode where the official five-rejection rule can instantly lose, so the tracker was least
+  useful when it mattered most. Now it always shows proposal/rejection progress and flags the
+  5th-proposal stakes ("reject = Evil wins" vs "(HAMMER) - auto-approve").
+- Tests 116 -> 119: two engine tests (team/quest first-cast-wins, asserting the flip is
+  ignored AND only one ballot event lands) + a node suite `tests/web/proposal_records.test.mjs`
+  (8 cases) that was the biggest untested surface — `buildProposalRecords`/`missionSummary`/
+  `hammerText`, the fold of the redacted public event stream into the proposal matrix — wired
+  via `tests/test_web_logic.py` (gated on node like the XSS test). Cross-realm VM objects need
+  a JSON round-trip (`plain()`) before `deepStrictEqual`.
+- Verified: ruff clean, mypy --strict clean, 119 pytest + 8 node pass. Wet test on a real
+  local heuristic server: re-vote guard holds at the HTTP layer (leader's APPROVE→REJECT flip
+  ignored → resolves to quest, 5 ballots not 6; evil member's SUCCESS→FAIL swap ignored →
+  fails=0), and a full 7p all-bot game ran to game_over (Lady fired 2x, roles revealed, no
+  quest_vote leak). Noticed but left alone: `/game/start` before `/game/new` 500s on a bare
+  RuntimeError instead of a clean 4xx (pre-existing, out of scope).
+
 ### 2026-06-18T~UTC - End-of-game role reveal (new user-facing feature)
 - Closed a real product gap: a hidden-role game had no end reveal. `public_state` stripped
   roles unconditionally, so finishing a game just showed "Winner: evil" with no flip of who

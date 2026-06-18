@@ -137,15 +137,24 @@ function playerName(state, playerId) {
 }
 
 function hammerText(state) {
-  if (!state || !state.config || !state.config.hammer_auto_approve) {
-    return "Disabled";
+  if (!state || !state.config) {
+    return "—";
   }
   const attempt = Math.min(5, (state.proposal_attempts || 0) + 1);
   const rejections = Math.min(4, state.proposal_attempts || 0);
+  const hammer = state.config.hammer_auto_approve;
   if (attempt >= 5) {
-    return `Proposal 5/5 (HAMMER) - auto-approve`;
+    // The fifth proposal of the round. With the hammer it auto-approves; with
+    // the hammer off this is the last chance, and a rejection hands evil the
+    // win (official five-rejection rule) — so surface those stakes rather than
+    // a bare "Disabled", since that off-hammer mode is exactly when the
+    // rejection count matters most.
+    return hammer
+      ? "Proposal 5/5 (HAMMER) - auto-approve"
+      : "Proposal 5/5 - reject = Evil wins";
   }
-  return `Proposal ${attempt}/5 - ${rejections}/4 rejections`;
+  const suffix = hammer ? "" : " (no hammer)";
+  return `Proposal ${attempt}/5 - ${rejections}/4 rejections${suffix}`;
 }
 
 function renderProposalTracker(state) {

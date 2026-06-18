@@ -277,6 +277,60 @@ def test_quest_votes_never_revealed():
     asyncio.run(scenario())
 
 
+def test_team_ballot_is_committed_on_first_cast():
+    """A resubmitted team vote is ignored: the first ballot is final."""
+
+    async def scenario():
+        engine = await started_engine(ROLES_5)
+        await propose(engine, ["p1", "p2"])
+        # p1 commits APPROVE, then (e.g. via a double-click) tries to flip it.
+        await engine.apply_action("p1", "vote_team", {"approve": True})
+        await engine.apply_action("p1", "vote_team", {"approve": False})
+        # The first ballot stands and the resubmission emits no second event...
+        assert engine.public_state(viewer_id="p1").team_votes == {"p1": True}
+        assert event_types(engine).count("team_vote") == 1
+        # ...nor does it advance the round (the round is still open).
+        assert engine.state.phase == Phase.team_vote
+
+        # The remaining four vote once each; resolution sees p1's committed
+        # APPROVE, so the team carries 3-2. Had the flip to REJECT taken hold it
+        # would have been 2-3 and the proposal would have been rejected instead.
+        await vote_team(engine, {"p2": True, "p3": True, "p4": False, "p5": False})
+        state = engine.state
+        assert state.phase == Phase.quest
+        assert state.team_votes["p1"] is True
+        # Exactly one ballot per player reached the log — none double-counted.
+        assert event_types(engine).count("team_vote") == 5
+
+    asyncio.run(scenario())
+
+
+def test_quest_card_is_committed_on_first_play():
+    """A resubmitted quest card is ignored: the first card played is final."""
+
+    async def scenario():
+        engine = await started_engine(ROLES_5)  # p4 is the (evil) Assassin
+        await propose(engine, ["p1", "p4"])
+        await vote_team(engine, {p.id: True for p in engine.state.players})
+        assert engine.state.phase == Phase.quest
+
+        # p4 plays SUCCESS, then tries to swap to FAIL before p1 plays.
+        await engine.apply_action("p4", "quest_vote", {"success": True})
+        await engine.apply_action("p4", "quest_vote", {"success": False})
+        # The first card stands, the quest stays open, and no second card lands.
+        assert engine.state.phase == Phase.quest
+        assert event_types(engine).count("quest_vote") == 1
+
+        await engine.apply_action("p1", "quest_vote", {"success": True})
+        record = engine.state.quest_history[-1]
+        # p4's committed SUCCESS held, so the quest passed with zero fails. The
+        # ignored FAIL would have sunk it (fails == 1) had it taken effect.
+        assert record.fails == 0 and record.succeeded
+        assert event_types(engine).count("quest_vote") == 2
+
+    asyncio.run(scenario())
+
+
 def test_public_state_strips_roles_and_lady_history():
     async def scenario():
         engine = await started_engine(ROLES_5)
