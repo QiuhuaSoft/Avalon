@@ -211,10 +211,35 @@ def test_events_endpoint_is_public_for_spectators():
     assert "game_created" in [event["type"] for event in response.json()["events"]]
 
 
-def test_public_state_never_includes_roles():
+def test_public_state_hides_roles_during_play():
     create_game()
     start_game()
     assert all(p["role"] is None for p in public_state()["players"])
+
+
+def test_public_state_reveals_roles_after_game_over():
+    """The /game/state endpoint publishes every role once a winner is decided."""
+    create_game(hammer_auto_approve=False)
+    state = start_game()
+    players = [p["id"] for p in state["players"]]
+
+    # Hammer off: reject five proposals in a single round to end the game.
+    for _ in range(5):
+        state = public_state()
+        leader = players[state["leader_index"]]
+        other = next(pid for pid in players if pid != leader)
+        act(leader, "propose_team", {"team": [leader, other]})
+        for pid in players:
+            state = act(pid, "vote_team", {"approve": False})
+
+    assert state["phase"] == "game_over"
+    assert state["winner"] == "evil"
+    revealed = public_state()
+    assert all(p["role"] is not None for p in revealed["players"])
+    # Exactly one Merlin and one Assassin are revealed (the 5-player default set).
+    roles = [p["role"] for p in revealed["players"]]
+    assert roles.count("Merlin") == 1
+    assert roles.count("Assassin") == 1
 
 
 def test_lifespan_starts_and_stops_the_bot_loop_cleanly():

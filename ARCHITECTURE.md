@@ -45,6 +45,11 @@ Single-process FastAPI app hosting one Avalon game at a time, played by humans
 - `GameEngine.public_state(viewer_id)` strips roles and Lady history, hides open team
   votes (only the viewer's own ballot) until the proposal resolves, and never exposes
   individual quest votes — only aggregate fail counts after resolution.
+- **End-game reveal:** once `phase == game_over` the hidden-role veil lifts — roles and the
+  full Lady history become public in every snapshot (the tabletop end-of-game flip).
+  Individual quest ballots stay secret even then, mirroring the shuffled physical quest
+  cards; they are also already empty by game over (cleared as each quest resolves). This
+  is safe because `game_over` is terminal: no decision depends on the now-public roles.
 - `public_events()` in `api.py` applies the same policy to the event log: `quest_vote`
   events are dropped; `team_vote` events are withheld until their resolution event.
 - Role knowledge (Merlin's sight, evil mutual knowledge, Percival's candidates) is

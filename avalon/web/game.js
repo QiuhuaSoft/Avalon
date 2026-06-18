@@ -40,6 +40,16 @@ if (!playerId && !playerToken) {
   roleRevealEl.textContent = "Pick a seat first.";
 }
 
+// Mirrors EVIL_ROLES in avalon/game.py; used only for the end-game reveal,
+// where the server publishes every player's true role.
+const EVIL_ROLE_NAMES = new Set([
+  "Assassin",
+  "Morgana",
+  "Mordred",
+  "Oberon",
+  "Minion of Mordred",
+]);
+
 function tagDiv(text) {
   const div = document.createElement("div");
   div.className = "tag";
@@ -47,18 +57,35 @@ function tagDiv(text) {
   return div;
 }
 
-function renderPlayerTable(visibility = [], ladyHolderId) {
+function renderPlayerTable(visibility = [], ladyHolderId, revealPlayers = null) {
   playerTableEl.innerHTML = "";
+  // After game over the server publishes true roles; show them instead of the
+  // viewer's now-stale alignment hints.
+  const revealRoleById = {};
+  if (Array.isArray(revealPlayers)) {
+    revealPlayers.forEach((p) => {
+      if (p && p.role) revealRoleById[p.id] = p.role;
+    });
+  }
   visibility.forEach((entry) => {
     const card = document.createElement("div");
     card.className = "player-card";
-    if (entry.alignment_hint === "evil") card.classList.add("evil");
-    if (entry.alignment_hint === "merlin_candidate") card.classList.add("merlin");
-    const tag = entry.alignment_hint === "evil"
-      ? "Evil"
-      : entry.alignment_hint === "merlin_candidate"
-        ? "Merlin?"
-        : "Unknown";
+    const revealedRole = revealRoleById[entry.id];
+    let tag;
+    if (revealedRole) {
+      if (EVIL_ROLE_NAMES.has(revealedRole)) card.classList.add("evil");
+      else card.classList.add("good");
+      if (revealedRole === "Merlin") card.classList.add("merlin");
+      tag = revealedRole;
+    } else {
+      if (entry.alignment_hint === "evil") card.classList.add("evil");
+      if (entry.alignment_hint === "merlin_candidate") card.classList.add("merlin");
+      tag = entry.alignment_hint === "evil"
+        ? "Evil"
+        : entry.alignment_hint === "merlin_candidate"
+          ? "Merlin?"
+          : "Unknown";
+    }
     if (entry.id === ladyHolderId) card.appendChild(tagDiv("Lady"));
     card.appendChild(tagDiv(tag));
     // Player names are attacker-controlled: any remote player picks their own
@@ -362,6 +389,65 @@ function actionHint(text) {
   actionPanelEl.appendChild(p);
 }
 
+function describeOutcome(state) {
+  // The server reveals roles at game over, so we can name how the game ended.
+  const evilWon = state.winner === "evil";
+  if (state.assassin_target) {
+    const target = state.players.find((p) => p.id === state.assassin_target);
+    const targetName = target ? target.name : state.assassin_target;
+    if (target && target.role === "Merlin") {
+      return `The Assassin found Merlin (${targetName}) and stole the win for Evil.`;
+    }
+    return `The Assassin struck ${targetName}, but that was not Merlin — Good holds the realm.`;
+  }
+  if (evilWon) {
+    if ((state.fail_count || 0) >= 3) {
+      return "Three quests were sabotaged. Evil controls Camelot.";
+    }
+    return "Five proposals were rejected in a single round — Evil wins by deadlock.";
+  }
+  return "Three quests succeeded and Merlin survived the Assassin. Good prevails.";
+}
+
+function renderEndgameReveal(state) {
+  // Climactic end-of-game reveal: announce the winner, how it happened, and
+  // every player's true role. Names are attacker-controlled, so every name is
+  // written with textContent (never innerHTML) — same rule as the rest of the
+  // game view, since the host reads this page with localhost privileges.
+  actionPanelEl.innerHTML = "";
+  const evilWon = state.winner === "evil";
+
+  const headline = document.createElement("p");
+  headline.className = `reveal-headline ${evilWon ? "evil" : "good"}`;
+  headline.textContent = evilWon ? "Evil prevails" : "Good prevails";
+  actionPanelEl.appendChild(headline);
+
+  const outcome = document.createElement("p");
+  outcome.className = "hint";
+  outcome.textContent = describeOutcome(state);
+  actionPanelEl.appendChild(outcome);
+
+  const grid = document.createElement("div");
+  grid.className = "reveal-grid";
+  state.players.forEach((p) => {
+    const row = document.createElement("div");
+    const evil = EVIL_ROLE_NAMES.has(p.role);
+    row.className = `reveal-row ${p.role ? (evil ? "evil" : "good") : ""}`;
+
+    const name = document.createElement("strong");
+    name.textContent = p.name;
+    row.appendChild(name);
+
+    const role = document.createElement("span");
+    role.className = "reveal-role";
+    role.textContent = p.role || "Unknown";
+    row.appendChild(role);
+
+    grid.appendChild(row);
+  });
+  actionPanelEl.appendChild(grid);
+}
+
 function renderActionMenu(state, privateState) {
   actionPanelEl.innerHTML = "";
   if (!state) {
@@ -556,7 +642,7 @@ function renderActionMenu(state, privateState) {
   }
 
   if (phase === "game_over") {
-    actionHint(`Game over. Winner: ${state.winner}`);
+    renderEndgameReveal(state);
     return;
   }
 
@@ -639,7 +725,10 @@ async function refresh() {
     if (cachedPrivate) {
       renderRoleReveal(cachedPrivate);
       renderPrivateIntel(cachedPrivate);
-      renderPlayerTable(cachedPrivate.visibility || [], cachedState?.lady_holder_id);
+      // At game over the public state carries every true role; pass it so the
+      // table shows the reveal instead of the viewer's stale hints.
+      const revealPlayers = cachedState?.phase === "game_over" ? cachedState.players : null;
+      renderPlayerTable(cachedPrivate.visibility || [], cachedState?.lady_holder_id, revealPlayers);
     }
     // Use the private snapshot when available: the public state redacts the
     // viewer's own pending votes, which the action menu needs to detect.

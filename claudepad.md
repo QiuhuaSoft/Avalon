@@ -2,6 +2,27 @@
 
 ## Session Summaries
 
+### 2026-06-18T~UTC - End-of-game role reveal (new user-facing feature)
+- Closed a real product gap: a hidden-role game had no end reveal. `public_state` stripped
+  roles unconditionally, so finishing a game just showed "Winner: evil" with no flip of who
+  was Merlin/Assassin/etc. — anticlimactic and missing the genre's payoff moment.
+- Engine: `public_state` now keeps roles + `lady_history` when `phase == game_over` (the only
+  change to the redaction path). Individual quest ballots stay secret forever and are already
+  empty by game over (cleared as each quest resolves), so nothing leaks. Safe because
+  `game_over` is terminal — no decision depends on the now-public roles. Mid-game hiding is
+  untouched (verified live across 6 games).
+- Frontend (`game.js`): new `renderEndgameReveal` (headline + outcome sentence + per-player
+  role grid) shown in the Action Menu at game over; the player table now shows true roles too.
+  `describeOutcome` names how it ended (assassination hit/miss, 3 fails, or 5-rejection
+  deadlock). All names rendered via `textContent` (attacker-controlled; host views with
+  localhost privileges) — same XSS rule as the rest of the view. Added `.reveal-*` CSS.
+- Tests 114 -> 116: engine reveal test (hidden in play / revealed at game_over / quest votes
+  still secret), HTTP reveal test (drive 5-rejection game to game_over), and a node frontend
+  test that `renderEndgameReveal` shows roles and renders a `<img onerror>` name as inert text.
+- Verified: ruff clean, mypy --strict clean, 116 pytest pass, 3/3 node tests. Hard wet test:
+  6 all-bot games — roles hidden during all active play, assassination outcomes coherent
+  (hit Merlin <=> evil wins), reveal correct at game over, no quest_vote in the public log.
+
 ### 2026-06-17T~UTC - Input-hardening pass + restored the mypy gate against typed mlx_lm
 - Closed three real input gaps in `game.py`, all reachable from token-authenticated
   remote clients (the engine is the enforcement boundary):

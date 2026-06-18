@@ -342,9 +342,16 @@ class GameEngine:
 
     def public_state(self, viewer_id: Optional[str] = None) -> GameState:
         state = self.state.model_copy(deep=True)
-        for p in state.players:
-            p.role = None
-        state.lady_history = []
+        # Once the game is over the hidden-role veil lifts: every player's role
+        # and the full Lady-of-the-Lake history become public knowledge, the way
+        # a tabletop game ends with everyone flipping their role card. Until then
+        # roles are stripped from every snapshot. (Individual quest ballots stay
+        # secret even after the reveal — the physical quest cards are shuffled,
+        # so who failed a mission is never known; only the fail counts are.)
+        if state.phase != Phase.game_over:
+            for p in state.players:
+                p.role = None
+            state.lady_history = []
         # Team votes are revealed simultaneously: while the vote is open only the
         # viewer's own ballot is visible. Once resolved (approved team carries its
         # votes into the quest phase) they are public record.

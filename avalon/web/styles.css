@@ -297,9 +297,62 @@ pre {
   box-shadow: 0 8px 20px rgba(44, 127, 122, 0.2);
 }
 
+.player-card.good {
+  border-color: rgba(44, 127, 122, 0.35);
+}
+
 .player-card .tag {
   font-size: 0.7rem;
   letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+/* End-of-game reveal (rendered into the Action Menu once a winner is decided). */
+.reveal-headline {
+  margin: 0 0 6px;
+  font-size: 1.3rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+}
+
+.reveal-headline.good {
+  color: #2c7f7a;
+}
+
+.reveal-headline.evil {
+  color: #b43c3c;
+}
+
+.reveal-grid {
+  display: grid;
+  gap: 8px;
+  margin-top: 12px;
+}
+
+.reveal-row {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 8px 12px;
+  border-radius: 10px;
+  background: #fff;
+  border: var(--border);
+  border-left: 4px solid var(--muted);
+}
+
+.reveal-row.good {
+  border-left-color: #2c7f7a;
+}
+
+.reveal-row.evil {
+  border-left-color: #b43c3c;
+}
+
+.reveal-role {
+  font-size: 0.8rem;
+  letter-spacing: 0.06em;
   text-transform: uppercase;
   color: var(--muted);
 }

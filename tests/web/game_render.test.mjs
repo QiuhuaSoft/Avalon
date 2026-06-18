@@ -154,6 +154,45 @@ test("renderPlayerTable renders names as inert text, not markup", () => {
   );
 });
 
+test("renderEndgameReveal reveals roles and renders names as inert text", () => {
+  const game = loadGame();
+  htmlAssignments.length = 0;
+  // Outcome chosen so describeOutcome's sentence does NOT itself name any role
+  // (a quest-loss, not an assassination). That way the role assertions below
+  // genuinely exercise the per-player reveal grid rather than the summary line.
+  const state = {
+    winner: "evil",
+    assassin_target: null,
+    fail_count: 3,
+    players: [
+      { id: "p1", name: PAYLOAD, role: "Merlin" },
+      { id: "p2", name: "Bob", role: "Assassin" },
+      { id: "p3", name: "Cara", role: "Loyal Servant" },
+    ],
+  };
+  game.renderEndgameReveal(state);
+
+  for (const html of htmlAssignments) {
+    assert.ok(
+      !html.includes("<img"),
+      `revealed name leaked into an innerHTML assignment: ${html}`,
+    );
+  }
+  const panel = registry.get("actionPanel");
+  // Locate the role grid specifically, so the assertions can't be satisfied by
+  // the headline/outcome text alone (deleting the grid loop must fail the test).
+  const grid = panel.children.find((c) => c.className === "reveal-grid");
+  assert.ok(grid, "the reveal should render a per-player role grid");
+  const gridText = collectText(grid);
+  assert.ok(gridText.includes(PAYLOAD), "the revealed player name should render as text");
+  assert.ok(
+    gridText.includes("Merlin")
+      && gridText.includes("Assassin")
+      && gridText.includes("Loyal Servant"),
+    "every player's true role should appear in the reveal grid",
+  );
+});
+
 test("renderActionMenu hint renders leader name as inert text", () => {
   const game = loadGame();
   htmlAssignments.length = 0;

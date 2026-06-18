@@ -294,6 +294,45 @@ def test_public_state_strips_roles_and_lady_history():
     asyncio.run(scenario())
 
 
+def test_public_state_reveals_roles_after_game_over():
+    """The hidden-role veil lifts once the game ends (the tabletop reveal)."""
+
+    async def scenario():
+        engine = await started_engine(ROLES_5)  # p1 Merlin, p4 Assassin
+        engine.state.success_count = 2
+        # Seed a Lady peek so we can confirm the history publishes at the reveal too.
+        engine.state.lady_history.append(
+            {"holder_id": "p1", "target_id": "p4", "alignment": "evil"}
+        )
+
+        # Mid-game the roles and Lady history stay hidden.
+        assert all(p.role is None for p in engine.public_state().players)
+        assert engine.public_state().lady_history == []
+
+        # Third success -> assassination; roles must remain hidden until game over.
+        await propose(engine, ["p1", "p2"])
+        await vote_team(engine, {p.id: True for p in engine.state.players})
+        await run_quest(engine, {"p1": True, "p2": True})
+        assert engine.state.phase == Phase.assassination
+        assert all(p.role is None for p in engine.public_state().players)
+
+        # A (missed) shot ends the game and lifts the veil for everyone.
+        await engine.apply_action("p4", "assassinate", {"target_id": "p2"})
+        assert engine.state.phase == Phase.game_over
+
+        public = engine.public_state()
+        revealed = {p.id: p.role for p in public.players}
+        assert revealed["p1"] == Role.merlin
+        assert revealed["p4"] == Role.assassin
+        assert all(role is not None for role in revealed.values())
+        # The Lady history is public now...
+        assert public.lady_history and public.lady_history[0]["target_id"] == "p4"
+        # ...but individual quest ballots stay secret even at the reveal.
+        assert public.quest_votes == {}
+
+    asyncio.run(scenario())
+
+
 def test_create_game_validates_roles():
     from helpers import make_engine
 

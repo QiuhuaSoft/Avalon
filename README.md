@@ -7,6 +7,8 @@ LLM-powered Avalon for local play with bots and remote humans. One game at a tim
   proposals in a round hand evil the win (official rule).
 - Secret ballots: team votes are revealed only once the proposal resolves; quest votes never
   leave the server (only aggregate fail counts are public).
+- End-of-game reveal: when a winner is decided, every player's true role and the Lady of the
+  Lake history become public (quest ballots stay secret) and the game view shows who was who.
 - Event log in SQLite for replay/debug.
 - Human-first turn enforcement with bot catch-up.
 - All core Avalon roles supported (choose any subset per game).
@@ -47,9 +49,9 @@ Server runs at `http://0.0.0.0:8010`.
 python -m pytest
 ```
 
-The suite covers the rules engine, ballot secrecy, localhost/token auth, the Lady of the
-Lake flow, bot deferral, LLM-output parsing/prompt building, and storage. It runs with
-heuristic bots against a temporary database — no LLM needed.
+The suite covers the rules engine, ballot secrecy, the end-game role reveal, localhost/token
+auth, the Lady of the Lake flow, bot deferral, LLM-output parsing/prompt building, and storage.
+It runs with heuristic bots against a temporary database — no LLM needed.
 
 ## GUI
 
