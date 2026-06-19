@@ -8,17 +8,38 @@ from helpers import (
     ROLES_6,
     ROLES_7,
     event_types,
+    make_engine,
     propose,
     run_quest,
     started_engine,
     vote_team,
 )
 
-from avalon.game import DEFAULT_ROLE_SETS, EVIL_ROLES, alignment_for, team_size
+from avalon.game import (
+    DEFAULT_ROLE_SETS,
+    EVIL_ROLES,
+    GameNotCreatedError,
+    alignment_for,
+    team_size,
+)
 from avalon.models import Alignment, Phase, Role
 
 # Official The Resistance: Avalon evil-player counts per table size.
 OFFICIAL_EVIL_COUNTS = {5: 2, 6: 2, 7: 3, 8: 3, 9: 3, 10: 4}
+
+
+def test_state_property_raises_game_not_created_before_any_game():
+    """`state` guards every handler; with no game it must raise the typed error.
+
+    The HTTP layer reshapes GameNotCreatedError into a clean 400, so the type
+    (a RuntimeError subclass, for backward compatibility) is part of the
+    contract — a bare RuntimeError would escape as a 500 instead.
+    """
+    engine = make_engine()
+    assert engine.has_state() is False
+    with pytest.raises(GameNotCreatedError):
+        _ = engine.state
+    assert issubclass(GameNotCreatedError, RuntimeError)
 
 
 def test_alignment_for_maps_every_role_and_rejects_none():

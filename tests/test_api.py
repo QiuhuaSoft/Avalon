@@ -8,6 +8,8 @@ in these tests is driven by an explicit request.
 from fastapi.testclient import TestClient
 
 from avalon import api
+from avalon.game import GameEngine
+from avalon.storage import EventStore
 
 local = TestClient(api.app, client=("127.0.0.1", 50001))
 remote = TestClient(api.app, client=("198.51.100.7", 50002))
@@ -245,3 +247,36 @@ def test_public_state_reveals_roles_after_game_over():
 def test_lifespan_starts_and_stops_the_bot_loop_cleanly():
     with TestClient(api.app, client=("127.0.0.1", 50003)) as client:
         assert client.get("/game/state").status_code == 200
+
+
+def test_pregame_endpoints_return_clean_error_not_500():
+    """Routes that need an active game return 400 {"error": ...}, never a 500.
+
+    Every route that touches engine.state funnels its "no game yet" case through
+    GameNotCreatedError; without the handler the bare RuntimeError escapes as a
+    plain-text 500 the web clients can't read (they expect body.error). Swap in a
+    fresh game-less engine so the assertion is independent of test ordering.
+    """
+    saved_engine, saved_bot_engine = api.engine, api.bot_manager.engine
+    api.engine = GameEngine(EventStore(":memory:"))
+    api.bot_manager.engine = api.engine
+    try:
+        cases = [
+            ("/game/start", {}),
+            ("/game/action", {"player_id": "p1", "action_type": "chat", "payload": {}}),
+            ("/game/players/add", {"is_bot": True}),
+            ("/game/players/remove", {"player_id": "p1"}),
+            ("/game/players/reset", {"player_id": "p1"}),
+            ("/game/players/rename", {"player_id": "p1", "name": "X"}),
+            ("/game/players/remove_last_human", {}),
+            ("/game/players/claim", {"player_id": "p1", "name": "X"}),
+            ("/game/players/join", {"name": "X"}),
+            ("/game/players/ready", {"player_id": "p1", "ready": True}),
+        ]
+        for path, body in cases:
+            resp = local.post(path, json=body)
+            assert resp.status_code == 400, f"{path} -> {resp.status_code}: {resp.text}"
+            assert resp.json() == {"error": "No active game"}, f"{path}: {resp.text}"
+    finally:
+        api.engine = saved_engine
+        api.bot_manager.engine = saved_bot_engine

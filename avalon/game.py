@@ -123,6 +123,16 @@ def team_size(player_count: int, quest_number: int) -> int:
     return sizes[quest_number - 1]
 
 
+class GameNotCreatedError(RuntimeError):
+    """Raised when an operation needs an active game but none has been created.
+
+    Subclasses ``RuntimeError`` so it stays a programming-invariant error and any
+    existing ``except RuntimeError`` keeps catching it, while giving the HTTP
+    layer a precise type to reshape into a clean 400 (other, unexpected
+    RuntimeErrors still surface as 500s, the way an internal fault should).
+    """
+
+
 class GameEngine:
     def __init__(self, store: EventStore) -> None:
         self._store = store
@@ -135,7 +145,7 @@ class GameEngine:
     @property
     def state(self) -> GameState:
         if not self._state:
-            raise RuntimeError("Game not created")
+            raise GameNotCreatedError("No active game")
         return self._state
 
     def has_state(self) -> bool:

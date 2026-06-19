@@ -15,7 +15,7 @@ from fastapi.staticfiles import StaticFiles
 from .bot.manager import BotManager
 from .bot.prompts import build_action_instructions, build_context, build_system_prompt
 from .config import SETTINGS
-from .game import GameEngine
+from .game import GameEngine, GameNotCreatedError
 from .models import (
     ActionRequest,
     CreateGameRequest,
@@ -416,6 +416,17 @@ async def stream_state(websocket: WebSocket) -> None:
             await asyncio.sleep(0.5)
     except WebSocketDisconnect:
         return
+
+
+@app.exception_handler(GameNotCreatedError)
+async def game_not_created_handler(_: Request, exc: GameNotCreatedError) -> JSONResponse:
+    # Routes that touch engine.state before /game/new reach this. Without it the
+    # bare RuntimeError would escape as a plain-text 500 (not the {"error": ...}
+    # JSON the web clients read via body.error). Treated as a 400 precondition
+    # failure, consistent with the engine's other "wrong game state" ValueErrors
+    # (e.g. "Game not started"). Registered for this subclass only, so an
+    # unexpected RuntimeError elsewhere still surfaces as a 500.
+    return JSONResponse(status_code=400, content={"error": str(exc)})
 
 
 @app.exception_handler(ValueError)

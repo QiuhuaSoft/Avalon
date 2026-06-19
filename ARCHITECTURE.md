@@ -9,8 +9,12 @@ Single-process FastAPI app hosting one Avalon game at a time, played by humans
   `EventStore`, `GameEngine`, `BotManager`, `TunnelManager`. A lifespan task polls
   `BotManager.maybe_act()` every 0.5s so bots catch up whenever no human action is pending.
   Route guards signal auth/validation failures by raising `HTTPException`; exception
-  handlers reshape both it and engine `ValueError`s to `{"error": ...}` JSON (the shape
-  the web clients read). FastAPI's own routing/validation errors (404/422) are untouched.
+  handlers reshape it, engine `ValueError`s, and `GameNotCreatedError` (an action that
+  needs an active game arriving before `/game/new`) to `{"error": ...}` JSON (the shape
+  the web clients read), all as 400s. `GameNotCreatedError` is handled by its own
+  (`RuntimeError`-subclass) type so that path returns a clean 400 instead of a bare 500
+  while any *unexpected* `RuntimeError` still surfaces as a 500. FastAPI's own
+  routing/validation errors (404/422) are untouched.
 - `avalon/game.py` — rules engine. Pure-ish state machine over `GameState`
   (`avalon/models.py`): proposals, team votes, quests, Lady of the Lake, assassination,
   hammer and five-rejection rules. Emits events to the store; guarded by an asyncio lock.

@@ -2,6 +2,27 @@
 
 ## Session Summaries
 
+### 2026-06-18T~UTC - Pre-game endpoints return a clean 400, not a bare 500
+- Closed the robustness gap flagged (and explicitly deferred) in the previous summary:
+  `/game/start` before `/game/new` 500'd on a bare RuntimeError. It was not just one
+  endpoint — every route that touches `engine.state` before a game exists (`/game/start`,
+  `/game/action`, and all seven `/game/players/*` routes) escaped as a plain-text 500.
+  That breaks the documented `{"error": ...}` contract: the web clients read `body.error`,
+  which is absent on Starlette's text 500, so the UI showed a bare "Internal Server Error".
+- Root cause: the `GameEngine.state` property raised a bare `RuntimeError("Game not created")`
+  that no handler caught. Fix: a precise `GameNotCreatedError(RuntimeError)` raised by the
+  property + an `@app.exception_handler` that reshapes it to 400 `{"error": "No active game"}`.
+  Subclassing RuntimeError keeps it backward-compatible (any `except RuntimeError` still
+  catches it) and, crucially, keeps the handler precise — an *unexpected* RuntimeError
+  elsewhere still 500s as an internal fault should. 400 (not 409) matches the engine's
+  existing "wrong game state" ValueErrors ("Game not started", "Game already started").
+- Tests 119 -> 121: engine test that `state` raises `GameNotCreatedError` (a RuntimeError)
+  with no game; HTTP test driving all 10 affected routes to 400 `{"error": "No active game"}`
+  via a swapped game-less engine (save/restore the singleton so it's order-independent; the
+  routes fail at the `state` property before any store access, so `:memory:` is thread-safe).
+- Verified: ruff clean, mypy --strict clean, 121 pytest pass. End-to-end: pre-game routes
+  return 400 + JSON, post-`/game/new` flow still 200, `GameNotCreatedError` subclasses `RuntimeError`.
+
 ### 2026-06-18T~UTC - Commit ballots on first cast + hammer-aware tracker + matrix tests
 - Closed an engine-integrity gap in the team-proposal/voting flow. `vote_team` and
   `quest_vote` were the only actions that allowed resubmission *within* their phase (propose/
