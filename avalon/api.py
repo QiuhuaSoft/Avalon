@@ -338,14 +338,6 @@ async def reset_player(req: PlayerUpdateRequest, request: Request) -> Dict[str, 
     return {"state": engine.public_state()}
 
 
-@app.post("/game/players/claim")
-async def claim_player(req: PlayerUpdateRequest) -> Dict[str, Any]:
-    if not req.name:
-        raise HTTPException(status_code=400, detail="Name required")
-    await engine.claim_player(req.player_id, req.name)
-    return {"state": engine.public_state()}
-
-
 @app.post("/game/players/join")
 async def join_player(req: PlayerJoinRequest) -> Dict[str, Any]:
     if not req.name:

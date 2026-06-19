@@ -45,8 +45,16 @@ Single-process FastAPI app hosting one Avalon game at a time, played by humans
    bot context). `is_local_request` requires a loopback peer *and* no forwarding headers,
    so tunneled requests (cloudflared connects from 127.0.0.1) do not count.
 2. **Host token** — player management from anywhere (returned by `/game/new`).
-3. **Player token** — per-player UUID minted at seat assignment; authorizes actions and
+3. **Player token** — per-player UUID minted when a seat is claimed; authorizes actions and
    the private state view (`/game/state?token=...`).
+
+Every *state-mutating* route is gated by one of these tiers. The lone public write is
+`/game/players/join`: a remote player with no credentials takes the next open human seat and
+is handed a fresh player token in return — that token mint is the seat claim, so even the
+"unauthenticated" entry point produces an authenticated identity. (An earlier
+`/game/players/claim` route let an anonymous caller flag or rename a *specific* seat with no
+token minted; it was redundant with `join` and is removed so no unguarded mutator reaches the
+tunnel.)
 
 ## Information hiding
 

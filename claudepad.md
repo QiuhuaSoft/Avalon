@@ -2,6 +2,31 @@
 
 ## Session Summaries
 
+### 2026-06-19T~UTC - Remove the unauthenticated /game/players/claim route (security + dead code)
+- Closed the one hole in the access-tier model: `/game/players/claim` was the **only**
+  state-mutating route with no auth guard at all (no `is_local_request`, no host token, no
+  player token). Since the app is meant to be exposed to the internet via cloudflared, any
+  anonymous client reaching the tunnel could POST it to flag open human seats `claimed`
+  (so `join_next_human` skips them → DoS against real joiners) or rename unclaimed seats. It
+  also lacked the `started` guard every sibling mutator has, so it worked mid-game.
+- It was also dead + redundant: the lobby claims seats only through `/game/players/join`
+  (`join_next_human`), which mints a per-player token — that token mint *is* the seat claim.
+  Nothing (control.js / lobby.js / game.js / scripts) called `/claim`; the engine
+  `claim_player` method was reachable only from that one route. Removed both the route and
+  the engine method. `claim_player` did NOT mint a token, so it could never produce an
+  authenticated identity — strictly a worse, unguarded `join`.
+- Tests 121 -> 125: dropped the `/claim` case from the pre-game-error test (route is gone);
+  added a regression test that `POST /game/players/claim` now 404s for local AND remote and
+  leaves seat h1 untouched; plus positive HTTP coverage for the supported seat flow that was
+  previously only smoke-tested — distinct sequential joins each mint a token, join rejects
+  when no open human seat remains, and all-humans-ready trips the auto-start exactly once.
+- ARCHITECTURE.md: tightened the Access-tiers section to state every mutating route is gated,
+  `join` is the lone (token-minting) public write, and noted why `/claim` was removed.
+- Verified: ruff clean, mypy --strict clean, 125 pytest pass. Wet test on a real local
+  heuristic server: `/claim` 404s before and after a game exists; join mints a token + renames
+  the seat; ready auto-starts; a full 5p all-bot game (Lady on) ran to game_over with roles
+  revealed and no `quest_vote` leaked into the public event log.
+
 ### 2026-06-18T~UTC - Pre-game endpoints return a clean 400, not a bare 500
 - Closed the robustness gap flagged (and explicitly deferred) in the previous summary:
   `/game/start` before `/game/new` 500'd on a bare RuntimeError. It was not just one

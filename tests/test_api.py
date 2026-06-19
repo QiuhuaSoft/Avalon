@@ -269,7 +269,6 @@ def test_pregame_endpoints_return_clean_error_not_500():
             ("/game/players/reset", {"player_id": "p1"}),
             ("/game/players/rename", {"player_id": "p1", "name": "X"}),
             ("/game/players/remove_last_human", {}),
-            ("/game/players/claim", {"player_id": "p1", "name": "X"}),
             ("/game/players/join", {"name": "X"}),
             ("/game/players/ready", {"player_id": "p1", "ready": True}),
         ]
@@ -280,3 +279,67 @@ def test_pregame_endpoints_return_clean_error_not_500():
     finally:
         api.engine = saved_engine
         api.bot_manager.engine = saved_bot_engine
+
+
+def test_claim_endpoint_is_gone_so_seats_cannot_be_taken_without_auth():
+    """The old unauthenticated /game/players/claim route must not exist.
+
+    It was the only mutating endpoint with no localhost/host-token/player-token
+    guard, so any anonymous client reaching the tunnel could mark open human
+    seats `claimed` (locking out real joiners) or rename them mid-game. Seats are
+    claimed only through /game/players/join, which mints a per-player token. A
+    missing route returns 404 (Starlette's own handler), proving it is removed
+    rather than silently mutating state for unauthenticated callers.
+    """
+    create_game()
+    for client in (local, remote):
+        resp = client.post("/game/players/claim", json={"player_id": "h1", "name": "Mallory"})
+        assert resp.status_code == 404, resp.text
+    # The seat the dead endpoint targeted is untouched: still open, original name.
+    h1 = next(p for p in public_state()["players"] if p["id"] == "h1")
+    assert h1["claimed"] is False
+    assert h1["name"] == "Human 1"
+
+
+def test_join_claims_distinct_sequential_seats_and_mints_tokens():
+    """The supported seat-claiming flow: each join fills the next open human seat."""
+    create_game()  # five unclaimed human seats (h1..h5)
+    first = local.post("/game/players/join", json={"name": "Ada"}).json()
+    second = local.post("/game/players/join", json={"name": "Bea"}).json()
+    # Distinct seats, each with its own minted token.
+    assert first["player_id"] != second["player_id"]
+    assert first["token"] and second["token"]
+    assert first["token"] != second["token"]
+    # Both seats now read as claimed with the joiners' names.
+    by_id = {p["id"]: p for p in public_state()["players"]}
+    assert by_id[first["player_id"]]["claimed"] is True
+    assert by_id[first["player_id"]]["name"] == "Ada"
+    assert by_id[second["player_id"]]["name"] == "Bea"
+    assert sum(1 for p in by_id.values() if p["claimed"]) == 2
+
+
+def test_join_rejects_when_no_open_human_seats_remain():
+    create_game()  # five human seats
+    for i in range(5):
+        assert local.post("/game/players/join", json={"name": f"P{i}"}).status_code == 200
+    overflow = local.post("/game/players/join", json={"name": "late"})
+    assert overflow.status_code == 400
+    assert "No available human seats" in overflow.json()["error"]
+
+
+def test_game_auto_starts_only_once_every_human_is_ready():
+    """Auto-start fires when all claimed humans ready up — and not a moment sooner."""
+    create_game()  # five human seats, no bots
+    seats = [local.post("/game/players/join", json={"name": f"P{i}"}).json() for i in range(5)]
+
+    # All but the last ready up: the game must still be waiting.
+    for joined in seats[:-1]:
+        local.post("/game/players/ready", json={"token": joined["token"], "ready": True})
+    assert public_state()["started"] is False
+
+    # The final ready trips the auto-start and leaves the lobby.
+    last = local.post(
+        "/game/players/ready", json={"token": seats[-1]["token"], "ready": True}
+    ).json()["state"]
+    assert last["started"] is True
+    assert last["phase"] != "lobby"

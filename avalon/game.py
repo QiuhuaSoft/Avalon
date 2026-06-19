@@ -284,20 +284,6 @@ class GameEngine:
             self._emit("player_renamed", {"player_id": player_id, "name": player.name})
             return state
 
-    async def claim_player(self, player_id: str, name: str) -> GameState:
-        async with self._lock:
-            state = self.state
-            player = self._get_player(player_id)
-            if player.is_bot:
-                raise ValueError("Bots cannot be claimed")
-            if player.claimed:
-                raise ValueError("Player already claimed")
-            player.claimed = True
-            if name:
-                player.name = self._clean_name(name)
-            self._emit("player_claimed", {"player_id": player_id, "name": player.name})
-            return state
-
     async def join_next_human(self, name: str) -> Player:
         async with self._lock:
             state = self.state
