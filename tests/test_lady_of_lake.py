@@ -41,9 +41,9 @@ def test_lady_triggers_after_quest_two_and_passes_the_token():
         # Only the holder may act, and not on themselves.
         humans, _ = engine.pending_actions()
         assert humans == ["p1"]
-        with pytest.raises(ValueError, match="Only the Lady holder"):
+        with pytest.raises(ValueError, match="只有湖中夫人持有者可以操作"):
             await engine.apply_action("p2", "lady_peek", {"target_id": "p3"})
-        with pytest.raises(ValueError, match="Cannot target yourself"):
+        with pytest.raises(ValueError, match="不能调查自己"):
             await engine.apply_action("p1", "lady_peek", {"target_id": "p1"})
 
         # p1 inspects the Assassin (p5, evil): learns the true alignment and the
@@ -53,12 +53,12 @@ def test_lady_triggers_after_quest_two_and_passes_the_token():
         assert state.phase == Phase.team_proposal
         assert state.lady_holder_id == "p5"
         knowledge = engine.private_state_for("p1")["lady_knowledge"]
-        assert any("evil" in line for line in knowledge)
+        assert any("邪恶方" in line for line in knowledge)
         # The peek result is private to the holder, never the target.
         assert engine.private_state_for("p5")["lady_knowledge"] == []
 
         # The peek is not allowed once we leave the Lady phase.
-        with pytest.raises(ValueError, match="Not in Lady of the Lake phase"):
+        with pytest.raises(ValueError, match="当前不是湖中夫人阶段"):
             await engine.apply_action("p5", "lady_peek", {"target_id": "p2"})
 
     asyncio.run(scenario())
@@ -106,7 +106,7 @@ def test_lady_cannot_target_a_previous_holder():
         assert engine.state.lady_holder_id == "p5"
 
         # p1 already held the token, so the holder cannot bounce it back.
-        with pytest.raises(ValueError, match="previous Lady holder"):
+        with pytest.raises(ValueError, match="不能调查曾经持有湖中夫人的玩家"):
             await engine.apply_action("p5", "lady_peek", {"target_id": "p1"})
         # The phase stays open after the rejected peek.
         assert engine.state.phase == Phase.lady_of_lake
@@ -128,7 +128,7 @@ def test_disabled_lady_never_opens_the_phase():
         await _approve_and_run(engine, ["p1", "p2", "p3"], {"p1": True, "p2": True, "p3": True})
         # Straight to the next proposal — no Lady detour.
         assert engine.state.phase == Phase.team_proposal
-        with pytest.raises(ValueError, match="Lady of the Lake is disabled"):
+        with pytest.raises(ValueError, match="湖中夫人功能已禁用"):
             # Force the phase to prove the guard, not just the scheduling.
             engine.state.phase = Phase.lady_of_lake
             await engine.apply_action("p1", "lady_peek", {"target_id": "p2"})
@@ -144,6 +144,6 @@ def test_loyal_role_reads_as_loyal_through_the_lady():
         # p1 inspects p3 (a Loyal Servant).
         await engine.apply_action("p1", "lady_peek", {"target_id": "p3"})
         knowledge = engine.private_state_for("p1")["lady_knowledge"]
-        assert any("loyal" in line for line in knowledge)
+        assert any("正义方" in line for line in knowledge)
 
     asyncio.run(scenario())

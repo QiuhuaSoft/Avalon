@@ -126,7 +126,7 @@ def test_loyal_players_cannot_fail_quests():
         all_ids = [p.id for p in engine.state.players]
         await propose(engine, ["p1", "p4"])  # Merlin + Assassin
         await vote_team(engine, {pid: True for pid in all_ids})
-        with pytest.raises(ValueError, match="must submit success"):
+        with pytest.raises(ValueError, match="正义方玩家必须投成功"):
             await engine.apply_action("p1", "quest_vote", {"success": False})
         # The assassin is free to fail.
         await run_quest(engine, {"p1": True, "p4": False})
@@ -173,7 +173,7 @@ def test_third_success_triggers_assassination_and_merlin_hit_decides():
         await run_quest(engine, {"p1": True, "p2": True})
         state = engine.state
         assert state.phase == Phase.assassination
-        with pytest.raises(ValueError, match="Only assassin"):
+        with pytest.raises(ValueError, match="只有刺客可以执行刺杀"):
             await engine.apply_action("p1", "assassinate", {"target_id": "p2"})
         await engine.apply_action("p4", "assassinate", {"target_id": target})
         state = engine.state
@@ -196,12 +196,12 @@ def test_assassin_cannot_target_self_or_evil_teammate():
         assert engine.state.phase == Phase.assassination
 
         # The assassin (p5) may not throw the game on itself...
-        with pytest.raises(ValueError, match="cannot target themselves"):
+        with pytest.raises(ValueError, match="刺客不能刺杀自己"):
             await engine.apply_action("p5", "assassinate", {"target_id": "p5"})
         # ...nor on a known evil teammate (Morgana p6 / Minion p7).
-        with pytest.raises(ValueError, match="evil teammate"):
+        with pytest.raises(ValueError, match="邪恶方队友"):
             await engine.apply_action("p5", "assassinate", {"target_id": "p6"})
-        with pytest.raises(ValueError, match="evil teammate"):
+        with pytest.raises(ValueError, match="邪恶方队友"):
             await engine.apply_action("p5", "assassinate", {"target_id": "p7"})
 
         # The game is untouched: still awaiting a real shot.
@@ -417,13 +417,13 @@ def test_create_game_validates_roles():
         return [Player(id=f"p{i + 1}", name=f"P{i + 1}") for i in range(count)]
 
     async def scenario():
-        with pytest.raises(ValueError, match="Unsupported player count"):
+        with pytest.raises(ValueError, match="不支持的玩家数量"):
             await make_engine().create_game(CreateGameRequest(players=players(4)))
-        with pytest.raises(ValueError, match="match player count"):
+        with pytest.raises(ValueError, match="角色数量必须与玩家数量匹配"):
             await make_engine().create_game(
                 CreateGameRequest(players=players(5), roles=ROLES_6)
             )
-        with pytest.raises(ValueError, match="Morgana requires Percival"):
+        with pytest.raises(ValueError, match="莫甘娜需要派西维尔同时在场"):
             await make_engine().create_game(
                 CreateGameRequest(
                     players=players(5),
@@ -436,7 +436,7 @@ def test_create_game_validates_roles():
                     ],
                 )
             )
-        with pytest.raises(ValueError, match="Merlin and Assassin"):
+        with pytest.raises(ValueError, match="梅林和刺客是必选角色"):
             await make_engine().create_game(
                 CreateGameRequest(
                     players=players(5),

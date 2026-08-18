@@ -165,9 +165,9 @@ test("renderEndgameReveal reveals roles and renders names as inert text", () => 
     assassin_target: null,
     fail_count: 3,
     players: [
-      { id: "p1", name: PAYLOAD, role: "Merlin" },
-      { id: "p2", name: "Bob", role: "Assassin" },
-      { id: "p3", name: "Cara", role: "Loyal Servant" },
+      { id: "p1", name: PAYLOAD, role: "梅林" },
+      { id: "p2", name: "Bob", role: "刺客" },
+      { id: "p3", name: "Cara", role: "忠臣" },
     ],
   };
   game.renderEndgameReveal(state);
@@ -186,9 +186,9 @@ test("renderEndgameReveal reveals roles and renders names as inert text", () => 
   const gridText = collectText(grid);
   assert.ok(gridText.includes(PAYLOAD), "the revealed player name should render as text");
   assert.ok(
-    gridText.includes("Merlin")
-      && gridText.includes("Assassin")
-      && gridText.includes("Loyal Servant"),
+    gridText.includes("梅林")
+      && gridText.includes("刺客")
+      && gridText.includes("忠臣"),
     "every player's true role should appear in the reveal grid",
   );
 });

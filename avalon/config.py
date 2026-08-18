@@ -16,6 +16,7 @@ class Settings:
     )
     max_recent_chat: int = int(os.getenv("AVALON_CHAT_RECENT", "30"))
     action_timeout_seconds: int = int(os.getenv("AVALON_ACTION_TIMEOUT", "120"))
+    admin_password: str = os.getenv("AVALON_ADMIN_PASSWORD", "admin")
 
 
 SETTINGS = Settings()

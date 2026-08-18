@@ -39,7 +39,7 @@ def test_create_game_rejects_too_few_players_even_with_roles():
     # A four-player roster with four roles would slip past the role-count check,
     # then crash at propose time because QUEST_TEAM_SIZES has no 4-player row.
     async def scenario():
-        with pytest.raises(ValueError, match="Unsupported player count"):
+        with pytest.raises(ValueError, match="不支持的玩家数量"):
             await make_engine().create_game(
                 CreateGameRequest(players=_players(4), roles=ROLES_5[:4])
             )
@@ -50,7 +50,7 @@ def test_create_game_rejects_too_few_players_even_with_roles():
 def test_create_game_rejects_too_many_players():
     async def scenario():
         roles = list(ROLES_7) + [r for r in ROLES_5[:4]]  # 11 roles
-        with pytest.raises(ValueError, match="Unsupported player count"):
+        with pytest.raises(ValueError, match="不支持的玩家数量"):
             await make_engine().create_game(
                 CreateGameRequest(players=_players(11), roles=roles)
             )
@@ -62,7 +62,7 @@ def test_create_game_rejects_duplicate_player_ids():
     async def scenario():
         roster = _players(5)
         roster[1].id = roster[0].id  # collide two seats on one id
-        with pytest.raises(ValueError, match="unique"):
+        with pytest.raises(ValueError, match="不能重复"):
             await make_engine().create_game(CreateGameRequest(players=roster, roles=ROLES_5))
 
     asyncio.run(scenario())
@@ -72,7 +72,7 @@ def test_create_game_rejects_empty_player_ids():
     async def scenario():
         roster = _players(5)
         roster[0].id = ""
-        with pytest.raises(ValueError, match="non-empty"):
+        with pytest.raises(ValueError, match="不能为空"):
             await make_engine().create_game(CreateGameRequest(players=roster, roles=ROLES_5))
 
     asyncio.run(scenario())
@@ -93,9 +93,9 @@ def test_create_game_accepts_the_supported_range():
 def test_chat_rejects_blank_and_whitespace_only_messages():
     async def scenario():
         engine = await _started(make_engine(), ROLES_5)
-        with pytest.raises(ValueError, match="Message required"):
+        with pytest.raises(ValueError, match="消息不能为空"):
             await engine.apply_action("p1", "chat", {"message": ""})
-        with pytest.raises(ValueError, match="Message required"):
+        with pytest.raises(ValueError, match="消息不能为空"):
             await engine.apply_action("p1", "chat", {"message": "   "})
         assert engine.state.chat == []
 
@@ -105,7 +105,7 @@ def test_chat_rejects_blank_and_whitespace_only_messages():
 def test_chat_rejects_oversized_messages_but_allows_the_limit():
     async def scenario():
         engine = await _started(make_engine(), ROLES_5)
-        with pytest.raises(ValueError, match="too long"):
+        with pytest.raises(ValueError, match="消息过长"):
             await engine.apply_action("p1", "chat", {"message": "x" * (MAX_CHAT_LENGTH + 1)})
         assert engine.state.chat == []
         # Exactly at the cap is fine.
@@ -118,7 +118,7 @@ def test_chat_rejects_oversized_messages_but_allows_the_limit():
 def test_chat_rejects_non_string_payloads():
     async def scenario():
         engine = await _started(make_engine(), ROLES_5)
-        with pytest.raises(ValueError, match="Message required"):
+        with pytest.raises(ValueError, match="消息不能为空"):
             await engine.apply_action("p1", "chat", {"message": {"nested": "obj"}})
 
     asyncio.run(scenario())
@@ -131,9 +131,9 @@ def test_rename_rejects_oversized_names_and_trims_whitespace():
     async def scenario():
         engine = make_engine()
         await engine.create_game(CreateGameRequest(players=_players(5), roles=ROLES_5))
-        with pytest.raises(ValueError, match="too long"):
+        with pytest.raises(ValueError, match="名字过长"):
             await engine.rename_player("p1", "z" * (MAX_NAME_LENGTH + 1))
-        with pytest.raises(ValueError, match="Name required"):
+        with pytest.raises(ValueError, match="名字不能为空"):
             await engine.rename_player("p1", "   ")
         await engine.rename_player("p1", "  Alice  ")
         assert engine.state.players[0].name == "Alice"
@@ -145,10 +145,10 @@ def test_add_player_rejects_oversized_names():
     async def scenario():
         engine = make_engine()
         await engine.create_game(CreateGameRequest(players=_players(5), roles=ROLES_5))
-        with pytest.raises(ValueError, match="too long"):
+        with pytest.raises(ValueError, match="名字过长"):
             await engine.add_player(is_bot=True, name="b" * (MAX_NAME_LENGTH + 1))
         # A blank explicit name falls back to the generated default.
         state = await engine.add_player(is_bot=True, name=None)
-        assert state.players[-1].name.startswith("Bot ")
+        assert state.players[-1].name.startswith("机器人")
 
     asyncio.run(scenario())

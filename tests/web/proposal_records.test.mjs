@@ -193,27 +193,27 @@ test("missionSummary names each mission state", () => {
   const game = loadGame();
   const summary = (record) => plain(game.missionSummary(record));
   assert.deepEqual(summary({ result: "rejected" }), {
-    text: "Not run", cls: "mission-muted",
+    text: "未执行", cls: "mission-muted",
   });
   assert.deepEqual(summary({ result: "pending" }), {
-    text: "Pending vote", cls: "mission-pending",
+    text: "等待投票", cls: "mission-pending",
   });
   assert.deepEqual(summary({ result: "approved", missionResolved: false }), {
-    text: "In progress", cls: "mission-pending",
+    text: "进行中", cls: "mission-pending",
   });
   assert.deepEqual(
     summary({
       result: "approved", missionResolved: true, missionSucceeded: true,
       missionFails: 1, team: ["a", "b", "c"],
     }),
-    { text: "PASS (2P/1F)", cls: "mission-pass" },
+    { text: "成功 (2过/1否)", cls: "mission-pass" },
   );
   assert.deepEqual(
     summary({
       result: "approved", missionResolved: true, missionSucceeded: false,
       missionFails: 2, team: ["a", "b", "c", "d"],
     }),
-    { text: "FAIL (2P/2F)", cls: "mission-fail" },
+    { text: "失败 (2过/2否)", cls: "mission-fail" },
   );
 });
 
@@ -222,15 +222,15 @@ test("hammerText tracks the hammer countdown when the hammer is on", () => {
   assert.equal(game.hammerText(null), "—");
   assert.equal(
     game.hammerText({ config: { hammer_auto_approve: true }, proposal_attempts: 0 }),
-    "Proposal 1/5 - 0/4 rejections",
+    "第1次提议 - 0/4次拒绝",
   );
   assert.equal(
     game.hammerText({ config: { hammer_auto_approve: true }, proposal_attempts: 3 }),
-    "Proposal 4/5 - 3/4 rejections",
+    "第4次提议 - 3/4次拒绝",
   );
   assert.equal(
     game.hammerText({ config: { hammer_auto_approve: true }, proposal_attempts: 4 }),
-    "Proposal 5/5 (HAMMER) - auto-approve",
+    "第5次提议（锤子）- 自动通过",
   );
 });
 
@@ -240,14 +240,14 @@ test("hammerText surfaces the five-rejection stakes when the hammer is off", () 
   // bare "Disabled"), since this is the only mode where a rejection can lose.
   assert.equal(
     game.hammerText({ config: { hammer_auto_approve: false }, proposal_attempts: 0 }),
-    "Proposal 1/5 - 0/4 rejections (no hammer)",
+    "第1次提议 - 0/4次拒绝 (无锤子)",
   );
   assert.equal(
     game.hammerText({ config: { hammer_auto_approve: false }, proposal_attempts: 2 }),
-    "Proposal 3/5 - 2/4 rejections (no hammer)",
+    "第3次提议 - 2/4次拒绝 (无锤子)",
   );
   assert.equal(
     game.hammerText({ config: { hammer_auto_approve: false }, proposal_attempts: 4 }),
-    "Proposal 5/5 - reject = Evil wins",
+    "第5次提议 - 拒绝 = 邪恶方获胜",
   );
 });

@@ -22,14 +22,14 @@ class Phase(str, Enum):
 
 
 class Role(str, Enum):
-    merlin = "Merlin"
-    percival = "Percival"
-    loyal_servant = "Loyal Servant"
-    assassin = "Assassin"
-    morgana = "Morgana"
-    mordred = "Mordred"
-    oberon = "Oberon"
-    minion = "Minion of Mordred"
+    merlin = "梅林"
+    percival = "派西维尔"
+    loyal_servant = "忠臣"
+    assassin = "刺客"
+    morgana = "莫甘娜"
+    mordred = "莫德雷德"
+    oberon = "奥伯伦"
+    minion = "莫德雷德的爪牙"
 
 
 class Player(BaseModel):
@@ -93,6 +93,7 @@ class CreateGameRequest(BaseModel):
     roles: Optional[List[Role]] = None
     hammer_auto_approve: bool = True
     lady_of_lake: bool = True
+    admin_token: Optional[str] = None
 
 
 class ActionRequest(BaseModel):

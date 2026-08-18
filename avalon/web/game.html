@@ -1,46 +1,46 @@
 <!doctype html>
-<html lang="en">
+<html lang="zh-CN">
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>Avalon Game</title>
+    <title>阿瓦隆游戏</title>
     <link rel="stylesheet" href="/static/styles.css" />
   </head>
   <body>
     <main class="page">
       <header class="hero compact">
         <div>
-          <h1 id="playerName">Player</h1>
-          <p class="subhead" id="roleReveal">Waiting for game start…</p>
+          <h1 id="playerName">玩家</h1>
+          <p class="subhead" id="roleReveal">等待游戏开始…</p>
         </div>
         <div class="status">
-          <div class="status-label">Phase</div>
+          <div class="status-label">阶段</div>
           <div class="status-value" id="phaseValue">—</div>
-          <div class="status-label">Quest</div>
+          <div class="status-label">任务</div>
           <div class="status-value" id="questValue">—</div>
         </div>
       </header>
 
       <section class="grid">
         <div class="panel span">
-          <h2>Table</h2>
+          <h2>玩家桌</h2>
           <div id="playerTable" class="table-grid"></div>
         </div>
 
         <div class="panel span">
-          <h2>Proposal Tracker</h2>
+          <h2>提议追踪</h2>
           <div class="tracker-matrix-wrap">
             <table class="tracker-matrix">
               <tbody>
                 <tr>
-                  <th>Current Proposer</th>
+                  <th>当前提议者</th>
                   <td id="proposalLeader">—</td>
-                  <th>Hammer</th>
+                  <th>锤子</th>
                   <td id="proposalHammer">—</td>
                 </tr>
                 <tr>
-                  <th>Proposed Team</th>
-                  <td colspan="3" id="proposalTeam">No proposed team yet.</td>
+                  <th>提议队伍</th>
+                  <td colspan="3" id="proposalTeam">尚未提议队伍。</td>
                 </tr>
               </tbody>
             </table>
@@ -48,40 +48,40 @@
         </div>
 
         <div class="panel span">
-          <h2>Chat</h2>
+          <h2>聊天</h2>
           <div class="chat" id="chatLog"></div>
           <div class="inline">
             <!-- maxlength mirrors the server-side MAX_CHAT_LENGTH cap in game.py -->
-            <input id="chatMessage" maxlength="1000" placeholder="Say something to the table" />
-            <button id="sendChat">Send</button>
+            <input id="chatMessage" maxlength="1000" placeholder="说点什么…" />
+            <button id="sendChat">发送</button>
           </div>
         </div>
 
         <div class="panel span">
-          <h2>Proposal Matrix</h2>
-          <p class="hint">Full public history: every proposal, every Y/N vote, and mission result.</p>
-          <p class="hint matrix-scroll-hint">Scroll horizontally to view all player vote columns.</p>
+          <h2>提议矩阵</h2>
+          <p class="hint">完整公开历史：每次提议、每次投票和任务结果。</p>
+          <p class="hint matrix-scroll-hint">水平滚动查看所有玩家投票列。</p>
           <div class="proposal-matrix-wrap">
             <table class="proposal-matrix">
               <thead id="proposalMatrixHead"></thead>
               <tbody id="proposalMatrixBody"></tbody>
             </table>
           </div>
-          <p class="hint hidden" id="proposalMatrixEmpty">No team proposals yet.</p>
+          <p class="hint hidden" id="proposalMatrixEmpty">暂无队伍提议。</p>
         </div>
 
         <div class="panel">
-          <h2>Action Menu</h2>
+          <h2>操作菜单</h2>
           <div id="actionPanel" class="stack">
-            <p class="hint">Waiting for your turn.</p>
+            <p class="hint">等待你的回合。</p>
           </div>
           <p class="hint" id="actionHint"></p>
           <p class="hint hidden" id="botStatus"></p>
         </div>
 
         <div class="panel">
-          <h2>Private Intel</h2>
-          <div id="privateIntel" class="card">No private intel yet.</div>
+          <h2>私人情报</h2>
+          <div id="privateIntel" class="card">暂无私人情报。</div>
         </div>
       </section>
     </main>

@@ -22,15 +22,28 @@ const playerIdInput = $("playerId");
 
 const formatJson = (obj) => JSON.stringify(obj, null, 2);
 
+function phaseDisplayName(phase) {
+  const names = {
+    lobby: "大厅",
+    team_proposal: "组队提议",
+    team_vote: "投票表决",
+    quest: "执行任务",
+    lady_of_lake: "湖中夫人",
+    assassination: "刺杀",
+    game_over: "游戏结束",
+  };
+  return names[phase] || phase;
+}
+
 async function refreshState() {
   try {
     const state = await api("/game/state");
-    stateEls.serverStatus.textContent = "Online";
-    stateEls.phaseValue.textContent = state.state ? state.state.phase : "No game";
+    stateEls.serverStatus.textContent = "在线";
+    stateEls.phaseValue.textContent = state.state ? phaseDisplayName(state.state.phase) : "无游戏";
     stateEls.publicState.textContent = formatJson(state.state);
   } catch (err) {
-    stateEls.serverStatus.textContent = "Offline";
-    stateEls.publicState.textContent = "Unable to reach server.";
+    stateEls.serverStatus.textContent = "离线";
+    stateEls.publicState.textContent = "无法连接服务器。";
   }
 }
 
@@ -39,7 +52,7 @@ async function refreshEvents() {
     const events = await api("/game/events");
     stateEls.eventLog.textContent = formatJson(events.events);
   } catch (err) {
-    stateEls.eventLog.textContent = "Unable to load events.";
+    stateEls.eventLog.textContent = "无法加载事件。";
   }
 }
 
@@ -71,7 +84,7 @@ $("createGame").addEventListener("click", async () => {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(payload),
     });
-    stateEls.setupHint.textContent = "Game created.";
+    stateEls.setupHint.textContent = "游戏已创建。";
     await refreshState();
     await refreshEvents();
   } catch (err) {
@@ -82,7 +95,7 @@ $("createGame").addEventListener("click", async () => {
 $("startGame").addEventListener("click", async () => {
   try {
     await api("/game/start", { method: "POST" });
-    stateEls.setupHint.textContent = "Game started.";
+    stateEls.setupHint.textContent = "游戏已开始。";
     await refreshState();
     await refreshEvents();
   } catch (err) {
@@ -120,7 +133,7 @@ $("proposeTeam").addEventListener("click", async () => {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ player_id: playerId, action_type: "propose_team", payload: { team } }),
     });
-    stateEls.actionHint.textContent = "Team proposed.";
+    stateEls.actionHint.textContent = "队伍已提议。";
     await refreshState();
     await refreshEvents();
   } catch (err) {
@@ -139,7 +152,7 @@ async function voteTeam(approve) {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ player_id: playerId, action_type: "vote_team", payload: { approve } }),
     });
-    stateEls.actionHint.textContent = approve ? "Team approved." : "Team rejected.";
+    stateEls.actionHint.textContent = approve ? "队伍已通过。" : "队伍被拒绝。";
     await refreshState();
     await refreshEvents();
   } catch (err) {
@@ -158,7 +171,7 @@ async function questVote(success) {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ player_id: playerId, action_type: "quest_vote", payload: { success } }),
     });
-    stateEls.actionHint.textContent = success ? "Quest success sent." : "Quest fail sent.";
+    stateEls.actionHint.textContent = success ? "已提交任务成功。" : "已提交任务失败。";
     await refreshState();
     await refreshEvents();
   } catch (err) {
@@ -175,7 +188,7 @@ $("assassinate").addEventListener("click", async () => {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ player_id: playerId, action_type: "assassinate", payload: { target_id: targetId } }),
     });
-    stateEls.actionHint.textContent = "Assassination submitted.";
+    stateEls.actionHint.textContent = "刺杀已提交。";
     await refreshState();
     await refreshEvents();
   } catch (err) {

@@ -31,6 +31,7 @@ let playerToken = urlPlayerToken || localStorage.getItem("avalon_player_token") 
 let gameId = localStorage.getItem("avalon_game_id") || "";
 let hostToken = urlHostToken || localStorage.getItem("avalon_host_token") || "";
 let playerName = localStorage.getItem("avalon_player_name") || "";
+let adminToken = localStorage.getItem("avalon_admin_token") || "";
 
 if (urlHostToken) {
   localStorage.setItem("avalon_host_token", urlHostToken);
@@ -39,7 +40,8 @@ if (urlPlayerToken) {
   localStorage.setItem("avalon_player_token", urlPlayerToken);
 }
 
-const isHost = Boolean(hostToken) || ["localhost", "127.0.0.1"].includes(window.location.hostname);
+// Host controls are visible only to admins (logged in with password) or localhost
+const isHost = Boolean(adminToken) || ["localhost", "127.0.0.1"].includes(window.location.hostname);
 
 // Pre-fill name input from localStorage
 if (playerName) {
@@ -70,7 +72,7 @@ function renderPlayers(players) {
     row.className = "slot-row";
     const tag = document.createElement("span");
     tag.className = "slot-tag";
-    tag.textContent = player.ready ? "Ready" : player.claimed ? "Joined" : "Open";
+    tag.textContent = player.ready ? "已准备" : player.claimed ? "已加入" : "空位";
     const name = document.createElement("div");
     name.textContent = player.name;
     row.appendChild(tag);
@@ -88,13 +90,13 @@ function renderHostSlots(players) {
       row.className = "slot-row";
       const tag = document.createElement("span");
       tag.className = "slot-tag";
-      tag.textContent = player.ready ? "Ready" : player.claimed ? "Joined" : "Open";
+      tag.textContent = player.ready ? "已准备" : player.claimed ? "已加入" : "空位";
       const nameInput = document.createElement("input");
       nameInput.maxLength = 60; // mirrors the server-side MAX_NAME_LENGTH cap in game.py
       nameInput.value = player.name;
       const saveBtn = document.createElement("button");
       saveBtn.className = "ghost";
-      saveBtn.textContent = "Rename";
+      saveBtn.textContent = "改名";
       saveBtn.addEventListener("click", async () => {
         await api("/game/players/rename", {
           method: "POST",
@@ -105,7 +107,7 @@ function renderHostSlots(players) {
       });
       const kickBtn = document.createElement("button");
       kickBtn.className = "ghost";
-      kickBtn.textContent = "Kick";
+      kickBtn.textContent = "踢出";
       kickBtn.addEventListener("click", async () => {
         await api("/game/players/reset", {
           method: "POST",
@@ -125,7 +127,7 @@ function renderHostSlots(players) {
 async function joinGame() {
   const name = playerNameInput.value.trim();
   if (!name) {
-    lobbyHintEl.textContent = "Enter your name first.";
+    lobbyHintEl.textContent = "请先输入你的名字。";
     return;
   }
 
@@ -146,11 +148,11 @@ async function joinGame() {
           token: playerToken || undefined,
         }),
       });
-      seatInfoEl.textContent = `Seat claimed as ${name}.`;
-      lobbyHintEl.textContent = "Name updated.";
+      seatInfoEl.textContent = `座位已认领：${name}。`;
+      lobbyHintEl.textContent = "名字已更新。";
       await refresh();
     } catch (err) {
-      lobbyHintEl.textContent = "Couldn't rename: " + err.message;
+      lobbyHintEl.textContent = "改名失败：" + err.message;
     }
     return; // Don't try to join again if already joined
   }
@@ -182,8 +184,8 @@ async function joinGame() {
       localStorage.setItem("avalon_game_id", gameId);
     }
     localStorage.setItem("avalon_player_id", playerId);
-    seatInfoEl.textContent = `Seat claimed as ${name}.`;
-    lobbyHintEl.textContent = "Seat claimed. Click Ready when you're set.";
+    seatInfoEl.textContent = `座位已认领：${name}。`;
+    lobbyHintEl.textContent = "已入座。准备好后点击'准备'。";
     await refresh();
   } catch (err) {
     lobbyHintEl.textContent = err.message;
@@ -192,11 +194,11 @@ async function joinGame() {
 
 async function readyUp() {
   if (!playerId) {
-    lobbyHintEl.textContent = "Join the game first.";
+    lobbyHintEl.textContent = "请先加入游戏。";
     return;
   }
   if (!playerToken && !isHost) {
-    lobbyHintEl.textContent = "Missing player token. Rejoin the lobby link.";
+    lobbyHintEl.textContent = "缺少玩家令牌。请重新加入大厅链接。";
     return;
   }
   try {
@@ -205,7 +207,7 @@ async function readyUp() {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ token: playerToken || undefined, player_id: playerId, ready: true }),
     });
-    lobbyHintEl.textContent = "Ready set. Waiting for others…";
+    lobbyHintEl.textContent = "已准备。等待其他人…";
     await refresh();
   } catch (err) {
     lobbyHintEl.textContent = err.message;
@@ -216,13 +218,13 @@ async function refresh() {
   try {
     const state = await api("/game/state");
     if (!state.state) {
-      lobbyHintEl.textContent = "Waiting for host to create a game.";
+      lobbyHintEl.textContent = "等待房主创建游戏。";
       return;
     }
     if (playerId && !playerToken && !isHost) {
       playerId = "";
       localStorage.removeItem("avalon_player_id");
-      lobbyHintEl.textContent = "Missing player token. Please click Join again.";
+      lobbyHintEl.textContent = "缺少玩家令牌。请点击'加入游戏'。";
     }
     if (state.state.id && state.state.id !== gameId) {
       gameId = state.state.id;
@@ -244,7 +246,7 @@ async function refresh() {
     }
     const seat = players.find((p) => p.id === playerId);
     if (seat) {
-      seatInfoEl.textContent = `Seat: ${seat.name}. Status: ${seat.ready ? "Ready" : "Joined"}.`;
+      seatInfoEl.textContent = `座位：${seat.name}。状态：${seat.ready ? "已准备" : "已加入"}。`;
     }
     updatePersonalLink();
     if (playerId && state.state.started) {

@@ -34,5 +34,6 @@ def test_proposal_matrix_reconstruction_is_correct():
         cwd=REPO_ROOT,
         capture_output=True,
         text=True,
+        encoding="utf-8",
     )
     assert result.returncode == 0, f"node frontend test failed:\n{result.stdout}{result.stderr}"

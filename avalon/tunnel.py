@@ -40,7 +40,7 @@ class TunnelManager:
                     bufsize=1,
                 )
             except FileNotFoundError:
-                self._error = "cloudflared not found. Install it or use localhost.run."
+                self._error = "未找到 cloudflared。请安装它或使用 localhost.run。"
                 return self.status()
             self._reader_thread = threading.Thread(target=self._read_output, daemon=True)
             self._reader_thread.start()

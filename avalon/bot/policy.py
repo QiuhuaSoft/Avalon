@@ -14,7 +14,7 @@ from .prompts import build_action_instructions, build_context, build_system_prom
 logger = logging.getLogger(__name__)
 
 # Sent once when a bot assassin hands the kill decision to a human evil teammate.
-ASSASSIN_DEFER_MESSAGE = "I'll let the team decide who we should target."
+ASSASSIN_DEFER_MESSAGE = "让队友们决定应该刺杀谁吧。"
 
 
 class BotPolicy:
@@ -75,11 +75,11 @@ class BotPolicy:
                 player_id = self._resolve_name_to_id(state, name)
                 if player_id is None:
                     return ExtractionResult(
-                        success=False, value=None, error=f"Unknown player: '{name}'"
+                        success=False, value=None, error=f"未知玩家：'{name}'"
                     )
                 if player_id in ids:
                     return ExtractionResult(
-                        success=False, value=None, error=f"Duplicate player: '{name}'"
+                        success=False, value=None, error=f"重复玩家：'{name}'"
                     )
                 ids.append(player_id)
             # Validate team size
@@ -87,7 +87,7 @@ class BotPolicy:
                 return ExtractionResult(
                     success=False,
                     value=None,
-                    error=f"Team must have exactly {required_size} players, got {len(ids)}",
+                    error=f"队伍必须恰好有 {required_size} 名玩家，实际为 {len(ids)}",
                 )
             # Also extract the chat message
             say_result = LLMClient.extract_say(text)
@@ -170,12 +170,12 @@ class BotPolicy:
             target_id = self._resolve_name_to_id(state, target_result.value)
             if target_id is None:
                 return ExtractionResult(
-                    success=False, value=None, error=f"Unknown player: '{target_result.value}'"
+                    success=False, value=None, error=f"未知玩家：'{target_result.value}'"
                 )
             # Can't target self
             if target_id == player.id:
                 return ExtractionResult(
-                    success=False, value=None, error="Cannot assassinate yourself"
+                    success=False, value=None, error="不能刺杀自己"
                 )
             # Can't target evil teammates - they can't be Merlin
             target_player = next((p for p in state.players if p.id == target_id), None)
@@ -187,7 +187,7 @@ class BotPolicy:
                 return ExtractionResult(
                     success=False,
                     value=None,
-                    error=f"Cannot target {target_player.name} - they are your evil teammate",
+                    error=f"不能刺杀 {target_player.name} - 他们是你的邪恶方队友",
                 )
             say_result = LLMClient.extract_say(text)
             return ExtractionResult(
@@ -218,19 +218,19 @@ class BotPolicy:
             target_id = self._resolve_name_to_id(state, target_result.value)
             if target_id is None:
                 return ExtractionResult(
-                    success=False, value=None, error=f"Unknown player: '{target_result.value}'"
+                    success=False, value=None, error=f"未知玩家：'{target_result.value}'"
                 )
             # Can't target self
             if target_id == player.id:
                 return ExtractionResult(
-                    success=False, value=None, error="Cannot inspect yourself"
+                    success=False, value=None, error="不能调查自己"
                 )
             # Can't re-inspect a player who has already held the Lady.
             if target_id in self._prior_lady_holders(state):
                 return ExtractionResult(
                     success=False,
                     value=None,
-                    error=f"'{target_result.value}' already held the Lady; pick someone else",
+                    error=f"'{target_result.value}' 已经持有过湖中夫人；请选择其他人",
                 )
             say_result = LLMClient.extract_say(text)
             return ExtractionResult(

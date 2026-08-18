@@ -77,14 +77,14 @@ class LLMClient:
             # Build retry prompt with error feedback
             current_prompt = (
                 f"{prompt}\n\n"
-                f"[Your previous response was invalid: {result.error}]\n"
-                f"Please try again, following the format exactly."
+                f"[你之前的回复无效：{result.error}]\n"
+                f"请严格按照格式重新回答。"
             )
             # Slightly increase temperature on retry
             temperature = min(0.8, temperature + 0.15)
 
         return ExtractionResult(
-            success=False, value=None, error=f"Failed after {max_retries} attempts"
+            success=False, value=None, error=f"重试 {max_retries} 次后仍然失败"
         )
 
     # --- Extraction methods for the new simple format ---
@@ -97,16 +97,16 @@ class LLMClient:
         # reach across the newline and capture the following line as the roster.
         match = re.search(r"TEAM:[^\S\n]*([^\n]*)", text, re.IGNORECASE)
         if not match:
-            return ExtractionResult(success=False, value=None, error="No 'TEAM:' line found")
+            return ExtractionResult(success=False, value=None, error="未找到 'TEAM:' 行")
 
         names_str = match.group(1).strip()
         if not names_str:
-            return ExtractionResult(success=False, value=None, error="TEAM: line is empty")
+            return ExtractionResult(success=False, value=None, error="TEAM: 行为空")
 
         # Split by comma and clean up names
         names = [name.strip() for name in names_str.split(",") if name.strip()]
         if not names:
-            return ExtractionResult(success=False, value=None, error="No valid names in TEAM: line")
+            return ExtractionResult(success=False, value=None, error="TEAM: 行中没有有效名字")
 
         return ExtractionResult(success=True, value=names)
 
@@ -116,7 +116,7 @@ class LLMClient:
         match = re.search(r"VOTE:\s*(APPROVE|REJECT)", text, re.IGNORECASE)
         if not match:
             return ExtractionResult(
-                success=False, value=None, error="No 'VOTE: APPROVE' or 'VOTE: REJECT' found"
+                success=False, value=None, error="未找到 'VOTE: APPROVE' 或 'VOTE: REJECT'"
             )
 
         vote = match.group(1).upper()
@@ -128,7 +128,7 @@ class LLMClient:
         match = re.search(r"QUEST:\s*(SUCCESS|FAIL)", text, re.IGNORECASE)
         if not match:
             return ExtractionResult(
-                success=False, value=None, error="No 'QUEST: SUCCESS' or 'QUEST: FAIL' found"
+                success=False, value=None, error="未找到 'QUEST: SUCCESS' 或 'QUEST: FAIL'"
             )
 
         quest = match.group(1).upper()
@@ -141,11 +141,11 @@ class LLMClient:
         # capturing whatever the model wrote on the next line.
         match = re.search(r"SAY:[^\S\n]*([^\n]*)", text, re.IGNORECASE)
         if not match:
-            return ExtractionResult(success=False, value=None, error="No 'SAY:' line found")
+            return ExtractionResult(success=False, value=None, error="未找到 'SAY:' 行")
 
         message = match.group(1).strip()
         if not message:
-            return ExtractionResult(success=False, value=None, error="SAY: line is empty")
+            return ExtractionResult(success=False, value=None, error="SAY: 行为空")
 
         # Clean up the message - remove quotes if present
         if message.startswith('"') and message.endswith('"'):
@@ -167,7 +167,7 @@ class LLMClient:
 
         if not message:
             return ExtractionResult(
-                success=False, value=None, error="SAY: line only contained action keywords"
+                success=False, value=None, error="SAY: 行只包含操作关键字"
             )
 
         return ExtractionResult(success=True, value=message)
@@ -180,10 +180,10 @@ class LLMClient:
         pattern = rf"{keyword}:[^\S\n]*([^\n]*)"
         match = re.search(pattern, text, re.IGNORECASE)
         if not match:
-            return ExtractionResult(success=False, value=None, error=f"No '{keyword}:' line found")
+            return ExtractionResult(success=False, value=None, error=f"未找到 '{keyword}:' 行")
 
         name = match.group(1).strip()
         if not name:
-            return ExtractionResult(success=False, value=None, error=f"{keyword}: line is empty")
+            return ExtractionResult(success=False, value=None, error=f"{keyword}: 行为空")
 
         return ExtractionResult(success=True, value=name)

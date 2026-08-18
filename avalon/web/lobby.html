@@ -1,56 +1,56 @@
 <!doctype html>
-<html lang="en">
+<html lang="zh-CN">
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>Avalon Lobby</title>
+    <title>阿瓦隆大厅</title>
     <link rel="stylesheet" href="/static/styles.css" />
   </head>
   <body>
     <main class="page">
       <header class="hero compact">
         <div>
-          <h1>Avalon Lobby</h1>
+          <h1>阿瓦隆大厅</h1>
         </div>
         <div class="status">
-          <div class="status-label">Phase</div>
+          <div class="status-label">阶段</div>
           <div class="status-value" id="phaseValue">—</div>
-          <div class="status-label">Seats</div>
+          <div class="status-label">座位</div>
           <div class="status-value" id="seatCount">—</div>
         </div>
       </header>
 
       <section class="grid">
         <div class="panel">
-          <h2>Your Seat</h2>
+          <h2>你的座位</h2>
           <div class="row">
-            <label>Your name</label>
+            <label>你的名字</label>
             <!-- maxlength mirrors the server-side MAX_NAME_LENGTH cap in game.py -->
-            <input id="playerNameInput" maxlength="60" placeholder="Your name" />
+            <input id="playerNameInput" maxlength="60" placeholder="输入你的名字" />
           </div>
           <div class="actions">
-            <button id="joinBtn">Join game</button>
-            <button id="readyBtn" class="ghost">Ready</button>
+            <button id="joinBtn">加入游戏</button>
+            <button id="readyBtn" class="ghost">准备</button>
           </div>
           <p class="hint" id="lobbyHint"></p>
-          <div class="card" id="seatInfo">No seat claimed yet.</div>
+          <div class="card" id="seatInfo">尚未入座。</div>
           <div class="card hidden" id="personalLinkCard">
-            <strong>Your game link</strong>
+            <strong>你的游戏链接</strong>
             <p class="hint" id="personalLinkText">—</p>
           </div>
         </div>
 
         <div class="panel">
-          <h2>Players</h2>
+          <h2>玩家列表</h2>
           <div id="playerList" class="slot-list"></div>
         </div>
 
         <div class="panel span host-only hidden" id="hostControls">
-          <h2>Host Controls</h2>
-          <p class="hint">Visible only to the host link.</p>
+          <h2>房主控制</h2>
+          <p class="hint">仅房主链接可见。</p>
           <div class="slot-actions">
-            <button id="hostAddHuman" class="ghost">Add human slot</button>
-            <button id="hostRemoveHuman" class="ghost">Remove human slot</button>
+            <button id="hostAddHuman" class="ghost">添加人类座位</button>
+            <button id="hostRemoveHuman" class="ghost">移除人类座位</button>
           </div>
           <div id="hostSlotList" class="slot-list"></div>
         </div>

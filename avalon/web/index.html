@@ -1,119 +1,119 @@
 <!doctype html>
-<html lang="en">
+<html lang="zh-CN">
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>Avalon Control Room</title>
+    <title>阿瓦隆控制室</title>
     <link rel="stylesheet" href="/static/styles.css" />
   </head>
   <body>
     <main class="page">
       <header class="hero">
         <div>
-          <h1>Avalon Control Room</h1>
+          <h1>阿瓦隆控制室</h1>
         </div>
         <div class="status" id="status">
-          <div class="status-label">Server</div>
-          <div class="status-value" id="serverStatus">Checking…</div>
-          <div class="status-label">Phase</div>
+          <div class="status-label">服务器</div>
+          <div class="status-value" id="serverStatus">检查中…</div>
+          <div class="status-label">阶段</div>
           <div class="status-value" id="phaseValue">—</div>
         </div>
       </header>
 
       <section class="grid">
         <div class="panel">
-          <h2>Game Setup</h2>
+          <h2>游戏设置</h2>
           <div class="row">
-            <label>Player list (JSON)</label>
+            <label>玩家列表 (JSON)</label>
             <textarea id="playersJson" rows="6">[
-  {"id":"p1","name":"You","is_bot":false},
-  {"id":"p2","name":"Bot2","is_bot":true},
-  {"id":"p3","name":"Bot3","is_bot":true},
-  {"id":"p4","name":"Bot4","is_bot":true},
-  {"id":"p5","name":"Bot5","is_bot":true},
-  {"id":"p6","name":"Bot6","is_bot":true},
-  {"id":"p7","name":"Bot7","is_bot":true}
+  {"id":"p1","name":"你","is_bot":false},
+  {"id":"p2","name":"机器人2","is_bot":true},
+  {"id":"p3","name":"机器人3","is_bot":true},
+  {"id":"p4","name":"机器人4","is_bot":true},
+  {"id":"p5","name":"机器人5","is_bot":true},
+  {"id":"p6","name":"机器人6","is_bot":true},
+  {"id":"p7","name":"机器人7","is_bot":true}
 ]</textarea>
           </div>
           <div class="row">
-            <label>Custom roles (optional JSON array)</label>
-            <textarea id="rolesJson" rows="3" placeholder='["Merlin","Percival",...]'></textarea>
+            <label>自定义角色（可选 JSON 数组）</label>
+            <textarea id="rolesJson" rows="3" placeholder='["梅林","派西维尔",...]'></textarea>
           </div>
           <div class="row">
             <label class="toggle">
               <input type="checkbox" id="hammerRule" checked />
-              <span>Hammer auto-approve on 5th proposal</span>
+              <span>第5次提议自动通过（锤子规则）</span>
             </label>
           </div>
           <div class="actions">
-            <button id="createGame">Create Game</button>
-            <button id="startGame" class="ghost">Start Game</button>
+            <button id="createGame">创建游戏</button>
+            <button id="startGame" class="ghost">开始游戏</button>
           </div>
           <p class="hint" id="setupHint"></p>
         </div>
 
         <div class="panel">
-          <h2>Player View</h2>
+          <h2>玩家视角</h2>
           <div class="row">
-            <label>Private state for player id</label>
+            <label>查看玩家私人状态（输入玩家ID）</label>
             <div class="inline">
               <input id="playerId" value="p1" />
-              <button id="loadPrivate" class="ghost">Load</button>
+              <button id="loadPrivate" class="ghost">加载</button>
             </div>
           </div>
-          <div class="card" id="privateState">No private state loaded.</div>
+          <div class="card" id="privateState">尚未加载私人状态。</div>
           <div class="row">
-            <label>Chat message</label>
+            <label>聊天消息</label>
             <div class="inline">
-              <input id="chatMessage" placeholder="Say something..." />
-              <button id="sendChat">Send</button>
+              <input id="chatMessage" placeholder="说点什么…" />
+              <button id="sendChat">发送</button>
             </div>
           </div>
         </div>
 
         <div class="panel">
-          <h2>Actions</h2>
+          <h2>操作</h2>
           <div class="row">
-            <label>Propose team (comma-separated ids)</label>
+            <label>提议队伍（逗号分隔的玩家ID）</label>
             <div class="inline">
               <input id="teamIds" placeholder="p1,p7" />
-              <button id="proposeTeam">Propose</button>
+              <button id="proposeTeam">提议</button>
             </div>
           </div>
           <div class="row">
-            <label>Vote on team</label>
+            <label>队伍投票</label>
             <div class="inline">
-              <button id="approveTeam">Approve</button>
-              <button id="rejectTeam" class="ghost">Reject</button>
+              <button id="approveTeam">同意</button>
+              <button id="rejectTeam" class="ghost">拒绝</button>
             </div>
           </div>
           <div class="row">
-            <label>Quest vote</label>
+            <label>任务投票</label>
             <div class="inline">
-              <button id="questSuccess">Success</button>
-              <button id="questFail" class="ghost">Fail</button>
+              <button id="questSuccess">成功</button>
+              <button id="questFail" class="ghost">失败</button>
             </div>
           </div>
           <div class="row">
-            <label>Assassinate target id</label>
+            <label>刺杀目标ID</label>
             <div class="inline">
               <input id="assassinTarget" placeholder="p3" />
-              <button id="assassinate">Assassinate</button>
+              <button id="assassinate">刺杀</button>
             </div>
           </div>
           <p class="hint" id="actionHint"></p>
         </div>
 
         <div class="panel span">
-          <h2>Live State</h2>
+          <h2>实时状态</h2>
           <div class="split">
             <div>
-              <h3>Public state</h3>
-              <pre id="publicState">Waiting for server…</pre>
+              <h3>公开状态</h3>
+              <pre id="publicState">等待服务器…</pre>
             </div>
             <div>
-              <h3>Event log</h3>
-              <pre id="eventLog">No events yet.</pre>
+              <h3>事件日志</h3>
+              <pre id="eventLog">暂无事件。</pre>
             </div>
           </div>
         </div>

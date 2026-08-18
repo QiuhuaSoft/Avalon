@@ -31,5 +31,6 @@ def test_game_js_does_not_render_names_as_markup():
         cwd=REPO_ROOT,
         capture_output=True,
         text=True,
+        encoding="utf-8",
     )
     assert result.returncode == 0, f"node frontend test failed:\n{result.stdout}{result.stderr}"

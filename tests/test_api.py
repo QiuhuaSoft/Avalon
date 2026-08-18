@@ -81,7 +81,7 @@ def test_auth_failures_use_the_error_json_shape():
     create_game()
     resp = remote.post("/game/start")
     assert resp.status_code == 403
-    assert resp.json() == {"error": "localhost only"}
+    assert resp.json() == {"error": "仅限本地访问"}
 
 
 def test_create_game_rejects_unsupported_player_count_with_error_shape():
@@ -89,7 +89,7 @@ def test_create_game_rejects_unsupported_player_count_with_error_shape():
     too_many = [{"id": f"h{i}", "name": f"H{i}", "is_bot": False} for i in range(1, 12)]
     resp = local.post("/game/new", json={"players": too_many})
     assert resp.status_code == 400
-    assert "player count" in resp.json()["error"].lower()
+    assert "玩家数量" in resp.json()["error"]
 
 
 def test_proxied_loopback_requests_are_treated_as_remote():
@@ -157,7 +157,7 @@ def test_bot_context_requires_external_mode():
     create_game()
     response = local.get("/game/bot_context/h1")
     assert response.status_code == 400
-    assert "external bot mode" in response.json()["error"]
+    assert "外部机器人模式" in response.json()["error"]
 
 
 def test_tunnel_status_reports_without_starting_anything():
@@ -240,8 +240,8 @@ def test_public_state_reveals_roles_after_game_over():
     assert all(p["role"] is not None for p in revealed["players"])
     # Exactly one Merlin and one Assassin are revealed (the 5-player default set).
     roles = [p["role"] for p in revealed["players"]]
-    assert roles.count("Merlin") == 1
-    assert roles.count("Assassin") == 1
+    assert roles.count("梅林") == 1
+    assert roles.count("刺客") == 1
 
 
 def test_lifespan_starts_and_stops_the_bot_loop_cleanly():
@@ -275,7 +275,7 @@ def test_pregame_endpoints_return_clean_error_not_500():
         for path, body in cases:
             resp = local.post(path, json=body)
             assert resp.status_code == 400, f"{path} -> {resp.status_code}: {resp.text}"
-            assert resp.json() == {"error": "No active game"}, f"{path}: {resp.text}"
+            assert resp.json() == {"error": "没有进行中的游戏"}, f"{path}: {resp.text}"
     finally:
         api.engine = saved_engine
         api.bot_manager.engine = saved_bot_engine
@@ -324,7 +324,7 @@ def test_join_rejects_when_no_open_human_seats_remain():
         assert local.post("/game/players/join", json={"name": f"P{i}"}).status_code == 200
     overflow = local.post("/game/players/join", json={"name": "late"})
     assert overflow.status_code == 400
-    assert "No available human seats" in overflow.json()["error"]
+    assert "没有可用的人类座位" in overflow.json()["error"]
 
 
 def test_game_auto_starts_only_once_every_human_is_ready():

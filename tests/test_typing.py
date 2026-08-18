@@ -26,5 +26,6 @@ def test_avalon_package_is_mypy_strict_clean():
         cwd=REPO_ROOT,
         capture_output=True,
         text=True,
+        encoding="utf-8",
     )
     assert result.returncode == 0, f"mypy reported issues:\n{result.stdout}{result.stderr}"

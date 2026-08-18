@@ -119,7 +119,7 @@ def requires_two_fails(player_count: int, quest_number: int) -> bool:
 def team_size(player_count: int, quest_number: int) -> int:
     sizes = QUEST_TEAM_SIZES.get(player_count)
     if not sizes:
-        raise ValueError("Unsupported player count")
+        raise ValueError("不支持的玩家数量")
     return sizes[quest_number - 1]
 
 
@@ -145,7 +145,7 @@ class GameEngine:
     @property
     def state(self) -> GameState:
         if not self._state:
-            raise GameNotCreatedError("No active game")
+            raise GameNotCreatedError("没有进行中的游戏")
         return self._state
 
     def has_state(self) -> bool:
@@ -156,22 +156,22 @@ class GameEngine:
             player_count = len(req.players)
             if player_count < MIN_PLAYERS or player_count > MAX_PLAYERS:
                 raise ValueError(
-                    "Unsupported player count: "
-                    f"Avalon supports {MIN_PLAYERS}-{MAX_PLAYERS} players"
+                    "不支持的玩家数量："
+                    f"阿瓦隆支持 {MIN_PLAYERS}-{MAX_PLAYERS} 人游戏"
                 )
             ids = [p.id for p in req.players]
             if any(not pid for pid in ids):
-                raise ValueError("Player IDs must be non-empty")
+                raise ValueError("玩家ID不能为空")
             if len(set(ids)) != len(ids):
-                raise ValueError("Player IDs must be unique")
+                raise ValueError("玩家ID不能重复")
             # player_count is in range, so a default set always exists.
             roles = req.roles or DEFAULT_ROLE_SETS[player_count]
             if len(roles) != player_count:
-                raise ValueError("Role count must match player count")
+                raise ValueError("角色数量必须与玩家数量匹配")
             if Role.morgana in roles and Role.percival not in roles:
-                raise ValueError("Morgana requires Percival")
+                raise ValueError("莫甘娜需要派西维尔同时在场")
             if Role.merlin not in roles or Role.assassin not in roles:
-                raise ValueError("Merlin and Assassin are required roles")
+                raise ValueError("梅林和刺客是必选角色")
             config = GameConfig(
                 player_count=player_count,
                 roles=roles,
@@ -221,17 +221,17 @@ class GameEngine:
             if action_type == "chat":
                 message = payload.get("message", "")
                 if not isinstance(message, str) or not message.strip():
-                    raise ValueError("Message required")
+                    raise ValueError("消息不能为空")
                 if len(message) > MAX_CHAT_LENGTH:
-                    raise ValueError(f"Message too long (max {MAX_CHAT_LENGTH} characters)")
+                    raise ValueError(f"消息过长（最多 {MAX_CHAT_LENGTH} 个字符）")
                 if state.phase == Phase.assassination and player.role not in EVIL_ROLES:
-                    raise ValueError("Only evil players may chat during assassination")
+                    raise ValueError("刺杀阶段只有邪恶方玩家可以聊天")
                 state.chat.append(ChatMessage(player_id=player_id, message=message))
                 self._emit("chat", {"player_id": player_id, "message": message})
                 return state
 
             if not state.started:
-                raise ValueError("Game not started")
+                raise ValueError("游戏尚未开始")
 
             if action_type == "propose_team":
                 return self._handle_propose(state, player, payload)
@@ -244,18 +244,18 @@ class GameEngine:
             if action_type == "assassinate":
                 return self._handle_assassinate(state, player, payload)
 
-            raise ValueError(f"Unknown action: {action_type}")
+            raise ValueError(f"未知操作：{action_type}")
 
     async def add_player(self, is_bot: bool, name: Optional[str]) -> GameState:
         async with self._lock:
             state = self.state
             if state.started:
-                raise ValueError("Game already started")
+                raise ValueError("游戏已经开始")
             if len(state.players) >= MAX_PLAYERS:
-                raise ValueError("Max players reached")
+                raise ValueError("已达最大玩家数")
             prefix = "b" if is_bot else "h"
             next_id = self._next_id(prefix)
-            default_name = f"Bot {next_id[1:]}" if is_bot else f"Human {next_id[1:]}"
+            default_name = f"机器人{next_id[1:]}" if is_bot else f"玩家{next_id[1:]}"
             display_name = self._clean_name(name) if name else default_name
             state.players.append(Player(id=next_id, name=display_name, is_bot=is_bot))
             self._assign_token(next_id)
@@ -266,9 +266,9 @@ class GameEngine:
         async with self._lock:
             state = self.state
             if state.started:
-                raise ValueError("Game already started")
+                raise ValueError("游戏已经开始")
             if not self._has_player(player_id):
-                raise ValueError("Unknown player")
+                raise ValueError("未知玩家")
             state.players = [p for p in state.players if p.id != player_id]
             self._clear_token(player_id)
             self._emit("player_removed", {"player_id": player_id})
@@ -278,7 +278,7 @@ class GameEngine:
         async with self._lock:
             state = self.state
             if state.started:
-                raise ValueError("Game already started")
+                raise ValueError("游戏已经开始")
             player = self._get_player(player_id)
             player.name = self._clean_name(name)
             self._emit("player_renamed", {"player_id": player_id, "name": player.name})
@@ -288,7 +288,7 @@ class GameEngine:
         async with self._lock:
             state = self.state
             if state.started:
-                raise ValueError("Game already started")
+                raise ValueError("游戏已经开始")
             for player in state.players:
                 if not player.is_bot and not player.claimed:
                     player.claimed = True
@@ -296,14 +296,14 @@ class GameEngine:
                     player.name = self._clean_name(name)
                     self._emit("player_claimed", {"player_id": player.id, "name": player.name})
                     return player
-            raise ValueError("No available human seats")
+            raise ValueError("没有可用的人类座位")
 
     async def set_ready(self, player_id: str, ready: bool) -> GameState:
         async with self._lock:
             state = self.state
             player = self._get_player(player_id)
             if player.is_bot:
-                raise ValueError("Bots cannot ready")
+                raise ValueError("机器人不能准备")
             player.ready = ready
             self._emit("player_ready", {"player_id": player_id, "ready": ready})
             return state
@@ -312,27 +312,27 @@ class GameEngine:
         async with self._lock:
             state = self.state
             if state.started:
-                raise ValueError("Game already started")
+                raise ValueError("游戏已经开始")
             humans = [p for p in state.players if not p.is_bot]
             if not humans:
-                raise ValueError("No human slots to remove")
+                raise ValueError("没有可移除的人类座位")
             for candidate in reversed(humans):
                 if not candidate.claimed:
                     state.players = [p for p in state.players if p.id != candidate.id]
                     self._emit("player_removed", {"player_id": candidate.id})
                     return state
-            raise ValueError("All human slots are claimed")
+            raise ValueError("所有人类座位已被占用")
     async def reset_player(self, player_id: str) -> GameState:
         async with self._lock:
             state = self.state
             if state.started:
-                raise ValueError("Game already started")
+                raise ValueError("游戏已经开始")
             player = self._get_player(player_id)
             player.claimed = False
             player.ready = False
             self._rotate_token(player_id)
             suffix = player.id[1:] if len(player.id) > 1 else ""
-            player.name = f"Bot {suffix}" if player.is_bot else f"Human {suffix}"
+            player.name = f"机器人{suffix}" if player.is_bot else f"玩家{suffix}"
             self._emit("player_reset", {"player_id": player_id})
             return state
 
@@ -389,20 +389,20 @@ class GameEngine:
         self, state: GameState, player: Player, payload: Dict[str, Any]
     ) -> GameState:
         if state.phase != Phase.team_proposal:
-            raise ValueError("Not in team proposal phase")
+            raise ValueError("当前不是组队提议阶段")
         leader = state.players[state.leader_index]
         if player.id != leader.id:
-            raise ValueError("Only leader can propose")
+            raise ValueError("只有队长可以提议队伍")
         team = payload.get("team", [])
         if not isinstance(team, list):
-            raise ValueError("Team must be list of player IDs")
+            raise ValueError("队伍必须是玩家ID列表")
         size = team_size(state.config.player_count, state.quest_number)
         if len(team) != size:
-            raise ValueError("Invalid team size")
+            raise ValueError("队伍人数不正确")
         if len(set(team)) != len(team):
-            raise ValueError("Team has duplicates")
+            raise ValueError("队伍中有重复玩家")
         if not all(self._has_player(pid) for pid in team):
-            raise ValueError("Unknown player in team")
+            raise ValueError("队伍中有未知玩家")
         state.proposed_team = team
         state.team_votes = {}
         self._emit("team_proposed", {"leader_id": leader.id, "team": team})
@@ -416,10 +416,10 @@ class GameEngine:
 
     def _handle_vote(self, state: GameState, player: Player, payload: Dict[str, Any]) -> GameState:
         if state.phase != Phase.team_vote:
-            raise ValueError("Not in team vote phase")
+            raise ValueError("当前不是投票表决阶段")
         approve = payload.get("approve")
         if not isinstance(approve, bool):
-            raise ValueError("Approve must be boolean")
+            raise ValueError("投票必须是布尔值")
         # A team ballot is committed on its first cast — Avalon votes are
         # simultaneous and final. Ignore a resubmission so a double-click or
         # retry cannot flip an already-committed vote or emit a second ballot
@@ -458,14 +458,14 @@ class GameEngine:
         self, state: GameState, player: Player, payload: Dict[str, Any]
     ) -> GameState:
         if state.phase != Phase.quest:
-            raise ValueError("Not in quest phase")
+            raise ValueError("当前不是执行任务阶段")
         if player.id not in state.proposed_team:
-            raise ValueError("Only team members vote on quest")
+            raise ValueError("只有队伍成员可以投票")
         success = payload.get("success")
         if not isinstance(success, bool):
-            raise ValueError("Success must be boolean")
+            raise ValueError("任务投票必须是布尔值")
         if player.role and alignment_for(player.role) == Alignment.loyal and not success:
-            raise ValueError("Loyal players must submit success")
+            raise ValueError("正义方玩家必须投成功")
         # Quest cards are committed on first submission: ignore a resubmission so
         # a double-click cannot swap a played card or double-count toward
         # resolution. The first card a team member plays is the one that counts.
@@ -527,22 +527,22 @@ class GameEngine:
 
     def _handle_lady(self, state: GameState, player: Player, payload: Dict[str, Any]) -> GameState:
         if state.phase != Phase.lady_of_lake:
-            raise ValueError("Not in Lady of the Lake phase")
+            raise ValueError("当前不是湖中夫人阶段")
         if not state.config.lady_of_lake:
-            raise ValueError("Lady of the Lake is disabled")
+            raise ValueError("湖中夫人功能已禁用")
         if state.lady_holder_id != player.id:
-            raise ValueError("Only the Lady holder may act")
+            raise ValueError("只有湖中夫人持有者可以操作")
         target_id = payload.get("target_id")
         if not target_id or not self._has_player(target_id):
-            raise ValueError("Valid target_id required")
+            raise ValueError("需要有效的目标ID")
         if target_id == player.id:
-            raise ValueError("Cannot target yourself")
+            raise ValueError("不能调查自己")
         # Official rule: the Lady of the Lake may not be used on anyone who has
         # already held it. Every past holder appears as a `holder_id` in the peek
         # history (the current holder is caught by the self-check above), so this
         # also stops the token bouncing back and forth between two players.
         if any(entry["holder_id"] == target_id for entry in state.lady_history):
-            raise ValueError("Cannot target a previous Lady holder")
+            raise ValueError("不能调查曾经持有湖中夫人的玩家")
         target = self._get_player(target_id)
         alignment = alignment_for(target.role).value if target.role else "unknown"
         state.lady_history.append(
@@ -558,21 +558,21 @@ class GameEngine:
         self, state: GameState, player: Player, payload: Dict[str, Any]
     ) -> GameState:
         if state.phase != Phase.assassination:
-            raise ValueError("Not in assassination phase")
+            raise ValueError("当前不是刺杀阶段")
         if player.role != Role.assassin:
-            raise ValueError("Only assassin can act")
+            raise ValueError("只有刺客可以执行刺杀")
         target_id = payload.get("target_id")
         if not target_id or not self._has_player(target_id):
-            raise ValueError("Valid target_id required")
+            raise ValueError("需要有效的目标ID")
         if target_id == player.id:
-            raise ValueError("Assassin cannot target themselves")
+            raise ValueError("刺客不能刺杀自己")
         target = self._get_player(target_id)
         # The assassin already knows every evil teammate except Oberon, so naming
         # one can only forfeit the game. Reject it. Oberon is intentionally
         # excluded: the assassin cannot tell Oberon from a good player, and
         # rejecting an Oberon shot would leak that hidden alignment.
         if target.role in EVIL_ROLES and target.role != Role.oberon:
-            raise ValueError("Assassin cannot target a known evil teammate")
+            raise ValueError("刺客不能刺杀已知的邪恶方队友")
         state.assassin_target = target_id
         if target.role == Role.merlin:
             state.winner = Alignment.evil
@@ -624,9 +624,9 @@ class GameEngine:
         ]
         if player.role in EVIL_ROLES and player.role != Role.oberon:
             others = [p.name for p in evil_known if p.id != player.id]
-            return ["Known evil players (excluding Oberon): " + ", ".join(others)] if others else []
+            return ["已知的邪恶方玩家（不含奥伯伦）：" + ", ".join(others)] if others else []
         if player.role == Role.oberon:
-            return ["You are Oberon: evil but unknown to other evil players."]
+            return ["你是奥伯伦：邪恶方成员，但其他邪恶方玩家不知道你的身份。"]
         if player.role == Role.merlin:
             seen = [
                 p.name
@@ -634,23 +634,25 @@ class GameEngine:
                 if p.role in EVIL_ROLES and p.role != Role.mordred
             ]
             return (
-                ["Evil players you see (excluding Mordred): " + ", ".join(seen)] if seen else []
+                ["你看到的邪恶方玩家（不含莫德雷德）：" + ", ".join(seen)] if seen else []
             )
         if player.role == Role.percival:
             merlin = [p.name for p in self.state.players if p.role == Role.merlin]
             morgana = [p.name for p in self.state.players if p.role == Role.morgana]
             candidates = merlin + morgana
             if candidates:
-                return ["Merlin is one of: " + ", ".join(candidates)]
+                return ["梅林是其中之一：" + ", ".join(candidates)]
         return []
 
     def _lady_knowledge_for(self, player_id: str) -> List[str]:
         knowledge: List[str] = []
+        alignment_map = {"loyal": "正义方", "evil": "邪恶方"}
         for entry in self.state.lady_history:
             if entry["holder_id"] == player_id:
                 target = self._get_player(entry["target_id"])
+                alignment_str = alignment_map.get(entry['alignment'], entry['alignment'])
                 knowledge.append(
-                    f"Lady of the Lake: {target.name} is {entry['alignment']}."
+                    f"湖中夫人：{target.name} 是 {alignment_str}。"
                 )
         return knowledge
 
@@ -700,12 +702,12 @@ class GameEngine:
     def token_for(self, player_id: str) -> str:
         token = self._token_by_player_id.get(player_id)
         if not token:
-            raise ValueError("Unknown player")
+            raise ValueError("未知玩家")
         return token
 
     def host_token(self) -> str:
         if not self._host_token:
-            raise ValueError("Host token not initialized")
+            raise ValueError("主机令牌未初始化")
         return self._host_token
 
     def is_host_token(self, token: Optional[str]) -> bool:
@@ -714,7 +716,7 @@ class GameEngine:
     def player_id_for_token(self, token: str) -> str:
         player_id = self._player_id_by_token.get(token)
         if not player_id:
-            raise ValueError("Invalid player token")
+            raise ValueError("无效的玩家令牌")
         return player_id
 
     def _emit(self, event_type: str, payload: Dict[str, Any]) -> None:
@@ -727,7 +729,7 @@ class GameEngine:
         for p in self.state.players:
             if p.id == player_id:
                 return p
-        raise ValueError("Unknown player")
+        raise ValueError("未知玩家")
 
     def _next_id(self, prefix: str) -> str:
         existing = [p.id for p in self.state.players if p.id.startswith(prefix)]
@@ -744,9 +746,9 @@ class GameEngine:
     def _clean_name(name: str) -> str:
         cleaned = name.strip()
         if not cleaned:
-            raise ValueError("Name required")
+            raise ValueError("名字不能为空")
         if len(cleaned) > MAX_NAME_LENGTH:
-            raise ValueError(f"Name too long (max {MAX_NAME_LENGTH} characters)")
+            raise ValueError(f"名字过长（最多 {MAX_NAME_LENGTH} 个字符）")
         return cleaned
 
     def _assign_token(self, player_id: str) -> None:

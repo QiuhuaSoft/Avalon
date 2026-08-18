@@ -1,31 +1,46 @@
 <!doctype html>
-<html lang="en">
+<html lang="zh-CN">
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>Avalon Control</title>
+    <title>阿瓦隆控制台</title>
     <link rel="stylesheet" href="/static/styles.css" />
   </head>
   <body>
+    <!-- Admin login overlay -->
+    <div class="modal-overlay" id="loginModal">
+      <div class="modal-card">
+        <h2>管理员登录</h2>
+        <p class="hint">请输入管理员密码以访问控制台。</p>
+        <div style="margin: 20px 0;">
+          <input type="password" id="loginPassword" placeholder="管理员密码" style="text-align: center;" />
+        </div>
+        <button id="loginBtn">登录</button>
+        <p class="hint" id="loginHint" style="margin-top: 12px;"></p>
+      </div>
+    </div>
+
     <main class="page">
       <header class="hero">
         <div>
-          <h1>Avalon Control</h1>
+          <h1>阿瓦隆控制台</h1>
         </div>
         <div class="status">
-          <div class="status-label">Server</div>
-          <div class="status-value" id="serverStatus">Checking…</div>
-          <div class="status-label">Phase</div>
+          <div class="status-label">服务器</div>
+          <div class="status-value" id="serverStatus">检查中…</div>
+          <div class="status-label">阶段</div>
           <div class="status-value" id="phaseValue">—</div>
+          <div class="status-label" id="adminStatusLabel" style="display:none;">管理员</div>
+          <div class="status-value" id="adminStatus" style="display:none;">未登录</div>
         </div>
       </header>
 
       <section class="grid roster-grid">
         <div class="panel">
-          <h2>Roster</h2>
+          <h2>玩家名单</h2>
           <div class="row split">
             <div>
-              <label>Humans</label>
+              <label>人类玩家</label>
               <div class="counter">
                 <button id="humanDown" class="ghost">-</button>
                 <span id="humanCount">2</span>
@@ -33,7 +48,7 @@
               </div>
             </div>
             <div>
-              <label>AI Bots</label>
+              <label>AI机器人</label>
               <div class="counter">
                 <button id="botDown" class="ghost">-</button>
                 <span id="botCount">3</span>
@@ -43,7 +58,7 @@
           </div>
           <div class="row split">
             <div>
-              <label>Evil players</label>
+              <label>邪恶方人数</label>
               <div class="counter">
                 <button id="evilDown" class="ghost">-</button>
                 <span id="evilCount">2</span>
@@ -51,66 +66,58 @@
               </div>
             </div>
             <div>
-              <label>Good players</label>
+              <label>正义方人数</label>
               <div class="counter">
                 <span id="goodCount">3</span>
               </div>
             </div>
           </div>
-          <p class="hint">Total players: <span id="totalCount">5</span> (must be 5–10)</p>
+          <p class="hint">总人数：<span id="totalCount">5</span>（需要5-10人）</p>
         </div>
 
         <div class="panel">
-          <h2>Roles</h2>
+          <h2>角色</h2>
           <div class="role-grid" id="roleGrid"></div>
           <div class="role-grid role-grid-footer">
-            <button id="ladyToggle" class="role-toggle" data-feature="lady">Lady of the Lake</button>
+            <button id="ladyToggle" class="role-toggle" data-feature="lady">湖中夫人</button>
           </div>
-          <p class="hint" id="roleHint">Merlin & Assassin always included. Percival enables Morgana.</p>
+          <p class="hint" id="roleHint">梅林和刺客始终在场。派西维尔启用莫甘娜。</p>
         </div>
       </section>
 
       <section class="panel action-strip">
         <div>
-          <h2>Launch</h2>
-          <p class="hint">Hammer auto-approve on 5th proposal is always on.</p>
+          <h2>启动</h2>
+          <p class="hint">第5次提议自动通过（锤子规则）始终开启。</p>
         </div>
         <div class="actions">
-          <button id="createGame">Create Game</button>
+          <button id="createGame">创建游戏</button>
         </div>
         <p class="hint" id="setupHint"></p>
       </section>
 
       <section class="grid">
         <div class="panel span hidden" id="joinSection">
-          <h2>Join Links</h2>
-          <p class="hint">Share this single link with all humans. It will auto-copy.</p>
-          <div id="joinLinks" class="link-grid">No links yet.</div>
+          <h2>加入链接</h2>
+          <p class="hint">将此链接分享给所有人类玩家。链接会自动复制。</p>
+          <div id="joinLinks" class="link-grid">暂无链接。</div>
         </div>
 
         <div class="panel span hidden" id="liveSection">
           <div class="split">
             <div>
-              <h2>Live State</h2>
-              <p class="hint">Spoilers ahead. Debug only.</p>
-              <pre id="publicState">Waiting for server…</pre>
+              <h2>实时状态</h2>
+              <p class="hint">以下内容含剧透，仅供调试。</p>
+              <pre id="publicState">等待服务器…</pre>
             </div>
             <div>
-              <h2>Event Log</h2>
-              <pre id="eventLog">No events yet.</pre>
+              <h2>事件日志</h2>
+              <pre id="eventLog">暂无事件。</pre>
             </div>
           </div>
         </div>
       </section>
 
-      <div class="modal-overlay hidden" id="countdownModal">
-        <div class="modal-card">
-          <h2>Game Created!</h2>
-          <p class="subhead">Taking you there in...</p>
-          <div class="timer" id="countdownTimer">3</div>
-          <p class="hint">Or <a href="#" id="countdownLink">click here</a> to go now.</p>
-        </div>
-      </div>
     </main>
     <script src="/static/control.js"></script>
   </body>

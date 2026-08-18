@@ -1,3 +1,16 @@
+function phaseDisplayName(phase) {
+  const names = {
+    lobby: "大厅",
+    team_proposal: "组队提议",
+    team_vote: "投票表决",
+    quest: "执行任务",
+    lady_of_lake: "湖中夫人",
+    assassination: "刺杀",
+    game_over: "游戏结束",
+  };
+  return names[phase] || phase;
+}
+
 const api = (path, options = {}) => fetch(path, options).then(async (res) => {
   if (!res.ok) {
     const body = await res.json().catch(() => ({}));
@@ -35,19 +48,24 @@ let cachedPrivate = null;
 let cachedEvents = [];
 let teamDraftKey = "";
 let teamDraft = [];
+let lastRenderedPhase = null;
+let lastTeamVotesCount = 0;
+let lastQuestVotesCount = 0;
+let lastProposalAttempts = 0;
+let lastLeaderIndex = -1;
 
 if (!playerId && !playerToken) {
-  roleRevealEl.textContent = "Pick a seat first.";
+  roleRevealEl.textContent = "请先选择座位。";
 }
 
 // Mirrors EVIL_ROLES in avalon/game.py; used only for the end-game reveal,
 // where the server publishes every player's true role.
 const EVIL_ROLE_NAMES = new Set([
-  "Assassin",
-  "Morgana",
-  "Mordred",
-  "Oberon",
-  "Minion of Mordred",
+  "刺客",
+  "莫甘娜",
+  "莫德雷德",
+  "奥伯伦",
+  "莫德雷德的爪牙",
 ]);
 
 function tagDiv(text) {
@@ -75,18 +93,18 @@ function renderPlayerTable(visibility = [], ladyHolderId, revealPlayers = null) 
     if (revealedRole) {
       if (EVIL_ROLE_NAMES.has(revealedRole)) card.classList.add("evil");
       else card.classList.add("good");
-      if (revealedRole === "Merlin") card.classList.add("merlin");
+      if (revealedRole === "梅林") card.classList.add("merlin");
       tag = revealedRole;
     } else {
       if (entry.alignment_hint === "evil") card.classList.add("evil");
       if (entry.alignment_hint === "merlin_candidate") card.classList.add("merlin");
       tag = entry.alignment_hint === "evil"
-        ? "Evil"
+        ? "邪恶"
         : entry.alignment_hint === "merlin_candidate"
-          ? "Merlin?"
-          : "Unknown";
+          ? "梅林?"
+          : "未知";
     }
-    if (entry.id === ladyHolderId) card.appendChild(tagDiv("Lady"));
+    if (entry.id === ladyHolderId) card.appendChild(tagDiv("湖中夫人"));
     card.appendChild(tagDiv(tag));
     // Player names are attacker-controlled: any remote player picks their own
     // name. Build the node with textContent (never innerHTML) so a name like
@@ -115,19 +133,19 @@ function renderChat(chat = [], players = []) {
 
 function renderPrivateIntel(privateState) {
   if (!privateState || !privateState.role) {
-    privateIntelEl.textContent = "No private intel yet.";
+    privateIntelEl.textContent = "暂无私人情报。";
     return;
   }
   const knowledge = [...(privateState.knowledge || []), ...(privateState.lady_knowledge || [])];
-  privateIntelEl.textContent = knowledge.length ? knowledge.join("\n") : "No special intel.";
+  privateIntelEl.textContent = knowledge.length ? knowledge.join("\n") : "无特殊情报。";
 }
 
 function renderRoleReveal(privateState) {
   if (!privateState || !privateState.role) {
-    roleRevealEl.textContent = "Waiting for game start…";
+    roleRevealEl.textContent = "等待游戏开始…";
     return;
   }
-  roleRevealEl.textContent = `You are ${privateState.role}. Alignment: ${privateState.alignment}.`;
+  roleRevealEl.textContent = `你的身份：${privateState.role}。阵营：${privateState.alignment === "loyal" ? "正义方" : privateState.alignment === "evil" ? "邪恶方" : privateState.alignment}。`;
 }
 
 function playerName(state, playerId) {
@@ -150,18 +168,18 @@ function hammerText(state) {
     // a bare "Disabled", since that off-hammer mode is exactly when the
     // rejection count matters most.
     return hammer
-      ? "Proposal 5/5 (HAMMER) - auto-approve"
-      : "Proposal 5/5 - reject = Evil wins";
+      ? "第5次提议（锤子）- 自动通过"
+      : "第5次提议 - 拒绝 = 邪恶方获胜";
   }
-  const suffix = hammer ? "" : " (no hammer)";
-  return `Proposal ${attempt}/5 - ${rejections}/4 rejections${suffix}`;
+  const suffix = hammer ? "" : " (无锤子)";
+  return `第${attempt}次提议 - ${rejections}/4次拒绝${suffix}`;
 }
 
 function renderProposalTracker(state) {
   if (!state) {
     proposalLeaderEl.textContent = "—";
     proposalHammerEl.textContent = "—";
-    proposalTeamEl.textContent = "No proposed team yet.";
+    proposalTeamEl.textContent = "尚未提议队伍。";
     return;
   }
 
@@ -171,15 +189,15 @@ function renderProposalTracker(state) {
 
   if (state.proposed_team && state.proposed_team.length) {
     const teamNames = state.proposed_team.map((id) => playerName(state, id)).join(", ");
-    proposalTeamEl.textContent = `Team: ${teamNames}`;
+    proposalTeamEl.textContent = `队伍：${teamNames}`;
     return;
   }
 
   if (state.phase === "team_proposal" && leader) {
-    proposalTeamEl.textContent = `Waiting for ${leader.name} to propose a team.`;
+    proposalTeamEl.textContent = `等待 ${leader.name} 提议队伍。`;
     return;
   }
-  proposalTeamEl.textContent = "No proposed team yet.";
+  proposalTeamEl.textContent = "尚未提议队伍。";
 }
 
 function buildProposalRecords(events = []) {
@@ -282,20 +300,20 @@ function buildProposalRecords(events = []) {
 
 function missionSummary(record) {
   if (record.result === "rejected") {
-    return { text: "Not run", cls: "mission-muted" };
+    return { text: "未执行", cls: "mission-muted" };
   }
   if (record.result === "pending") {
-    return { text: "Pending vote", cls: "mission-pending" };
+    return { text: "等待投票", cls: "mission-pending" };
   }
   if (!record.missionResolved) {
-    return { text: "In progress", cls: "mission-pending" };
+    return { text: "进行中", cls: "mission-pending" };
   }
   const fails = Number.isInteger(record.missionFails) ? record.missionFails : 0;
   const passes = Math.max(0, (record.team?.length || 0) - fails);
   if (record.missionSucceeded) {
-    return { text: `PASS (${passes}P/${fails}F)`, cls: "mission-pass" };
+    return { text: `成功 (${passes}过/${fails}否)`, cls: "mission-pass" };
   }
-  return { text: `FAIL (${passes}P/${fails}F)`, cls: "mission-fail" };
+  return { text: `失败 (${passes}过/${fails}否)`, cls: "mission-fail" };
 }
 
 function renderProposalMatrix(state, events) {
@@ -304,7 +322,7 @@ function renderProposalMatrix(state, events) {
     proposalMatrixHeadEl.innerHTML = "";
     proposalMatrixBodyEl.innerHTML = "";
     proposalMatrixEmptyEl.classList.remove("hidden");
-    proposalMatrixEmptyEl.textContent = "No active game.";
+    proposalMatrixEmptyEl.textContent = "没有进行中的游戏。";
     return;
   }
 
@@ -317,13 +335,13 @@ function renderProposalMatrix(state, events) {
 
   const headRow = document.createElement("tr");
   [
-    "Quest",
-    "Prop",
-    "Leader",
-    "Team",
-    "Tally",
+    "任务",
+    "提议",
+    "队长",
+    "队伍",
+    "计票",
     ...playerOrder.map((pid, idx) => `${idx + 1}: ${playerName(state, pid)}`),
-    "Mission",
+    "任务",
   ]
     .forEach((label) => {
       const th = document.createElement("th");
@@ -334,7 +352,7 @@ function renderProposalMatrix(state, events) {
 
   if (!records.length) {
     proposalMatrixEmptyEl.classList.remove("hidden");
-    proposalMatrixEmptyEl.textContent = "No team proposals yet.";
+    proposalMatrixEmptyEl.textContent = "暂无队伍提议。";
     return;
   }
 
@@ -364,9 +382,9 @@ function renderProposalMatrix(state, events) {
     if (typeof record.approvals === "number" && typeof record.rejects === "number") {
       appendCell(`${record.approvals}Y / ${record.rejects}N`);
     } else if (record.hammered) {
-      appendCell("Hammer");
+      appendCell("锤子");
     } else {
-      appendCell("Pending");
+      appendCell("等待中");
     }
 
     playerOrder.forEach((pid) => {
@@ -404,18 +422,18 @@ function describeOutcome(state) {
   if (state.assassin_target) {
     const target = state.players.find((p) => p.id === state.assassin_target);
     const targetName = target ? target.name : state.assassin_target;
-    if (target && target.role === "Merlin") {
-      return `The Assassin found Merlin (${targetName}) and stole the win for Evil.`;
+    if (target && target.role === "梅林") {
+      return `刺客找到了梅林（${targetName}），为邪恶方赢得了胜利。`;
     }
-    return `The Assassin struck ${targetName}, but that was not Merlin — Good holds the realm.`;
+    return `刺客刺杀了 ${targetName}，但那不是梅林——正义方保住了胜利。`;
   }
   if (evilWon) {
     if ((state.fail_count || 0) >= 3) {
-      return "Three quests were sabotaged. Evil controls Camelot.";
+      return "三个任务被破坏。邪恶方控制了卡美洛。";
     }
-    return "Five proposals were rejected in a single round — Evil wins by deadlock.";
+    return "一轮中五次提议被拒绝——邪恶方因僵局获胜。";
   }
-  return "Three quests succeeded and Merlin survived the Assassin. Good prevails.";
+  return "三个任务成功，梅林在刺客的追杀下幸存。正义方获胜。";
 }
 
 function renderEndgameReveal(state) {
@@ -428,7 +446,7 @@ function renderEndgameReveal(state) {
 
   const headline = document.createElement("p");
   headline.className = `reveal-headline ${evilWon ? "evil" : "good"}`;
-  headline.textContent = evilWon ? "Evil prevails" : "Good prevails";
+  headline.textContent = evilWon ? "邪恶方获胜" : "正义方获胜";
   actionPanelEl.appendChild(headline);
 
   const outcome = document.createElement("p");
@@ -449,7 +467,7 @@ function renderEndgameReveal(state) {
 
     const role = document.createElement("span");
     role.className = "reveal-role";
-    role.textContent = p.role || "Unknown";
+    role.textContent = p.role || "未知";
     row.appendChild(role);
 
     grid.appendChild(row);
@@ -460,13 +478,13 @@ function renderEndgameReveal(state) {
 function renderActionMenu(state, privateState) {
   actionPanelEl.innerHTML = "";
   if (!state) {
-    actionHint("No active game.");
+    actionHint("没有进行中的游戏。");
     return;
   }
 
   const player = state.players.find((p) => p.id === playerId);
   if (!player) {
-    actionHint("Player not found. Return to /play.");
+    actionHint("未找到玩家。请返回 /play。");
     return;
   }
 
@@ -486,7 +504,7 @@ function renderActionMenu(state, privateState) {
       try {
         await handler();
       } catch (err) {
-        actionHintEl.textContent = err.message || "Action failed.";
+        actionHintEl.textContent = err.message || "操作失败。";
       }
     });
     actionPanelEl.appendChild(btn);
@@ -503,7 +521,7 @@ function renderActionMenu(state, privateState) {
     selector.className = "stack";
     const info = document.createElement("p");
     info.className = "hint";
-    info.textContent = `Select ${size} players (including yourself if desired).`;
+    info.textContent = `选择 ${size} 名玩家（可以包含自己）。`;
     selector.appendChild(info);
 
     const selects = [];
@@ -558,13 +576,13 @@ function renderActionMenu(state, privateState) {
     syncDraft();
     syncSelections();
 
-    addButton("Submit team", async () => {
+    addButton("提交队伍", async () => {
       const team = selects.map((s) => s.value);
       if (new Set(team).size !== team.length) {
-        throw new Error("Team cannot contain duplicate players.");
+        throw new Error("队伍不能包含重复玩家。");
       }
       if (team.length !== size) {
-        throw new Error("Invalid team size.");
+        throw new Error("队伍人数不正确。");
       }
       await submitAction("propose_team", { team });
     });
@@ -573,7 +591,7 @@ function renderActionMenu(state, privateState) {
 
   if (phase === "team_proposal") {
     if (leader.id !== playerId) {
-      actionHint(`Waiting for ${leader.name} to propose a team.`);
+      actionHint(`等待 ${leader.name} 提议队伍。`);
       return;
     }
     const size = teamSize(state);
@@ -583,31 +601,31 @@ function renderActionMenu(state, privateState) {
 
   if (phase === "team_vote") {
     if (state.team_votes && state.team_votes[playerId] !== undefined) {
-      actionHint("Vote submitted. Waiting on others.");
+      actionHint("已投票。等待其他人。");
       return;
     }
-    addButton("Approve team", () => submitAction("vote_team", { approve: true }));
-    addButton("Reject team", () => submitAction("vote_team", { approve: false }), true);
+    addButton("同意组队", () => submitAction("vote_team", { approve: true }));
+    addButton("拒绝组队", () => submitAction("vote_team", { approve: false }), true);
     return;
   }
 
   if (phase === "quest") {
     if (!state.proposed_team.includes(playerId)) {
-      actionHint("Quest in progress. You are not on the team.");
+      actionHint("任务进行中。你不在队伍中。");
       return;
     }
     if (state.quest_votes && state.quest_votes[playerId] !== undefined) {
-      actionHint("Vote submitted.");
+      actionHint("已投票。");
       return;
     }
-    addButton("Quest success", () => submitAction("quest_vote", { success: true }));
-    addButton("Quest fail", () => submitAction("quest_vote", { success: false }), true);
+    addButton("任务成功", () => submitAction("quest_vote", { success: true }));
+    addButton("任务失败", () => submitAction("quest_vote", { success: false }), true);
     return;
   }
 
   if (phase === "lady_of_lake") {
     if (state.lady_holder_id !== playerId) {
-      actionHint("Waiting for the Lady of the Lake.");
+      actionHint("等待湖中夫人。");
       return;
     }
     const select = document.createElement("select");
@@ -619,13 +637,13 @@ function renderActionMenu(state, privateState) {
       select.appendChild(opt);
     });
     actionPanelEl.appendChild(select);
-    addButton("Use Lady of the Lake", () => submitAction("lady_peek", { target_id: select.value }));
+    addButton("使用湖中夫人", () => submitAction("lady_peek", { target_id: select.value }));
     return;
   }
 
   if (phase === "assassination") {
-    if (privateState.role !== "Assassin") {
-      actionHint("Waiting for the assassin.");
+    if (privateState.role !== "刺客") {
+      actionHint("等待刺客。");
       return;
     }
     // The assassin and their known evil teammates can never be Merlin, so
@@ -646,7 +664,7 @@ function renderActionMenu(state, privateState) {
       select.appendChild(opt);
     });
     actionPanelEl.appendChild(select);
-    addButton("Assassinate", () => submitAction("assassinate", { target_id: select.value }));
+    addButton("执行刺杀", () => submitAction("assassinate", { target_id: select.value }));
     return;
   }
 
@@ -655,7 +673,7 @@ function renderActionMenu(state, privateState) {
     return;
   }
 
-  actionHint("Waiting for next phase.");
+  actionHint("等待下一阶段。");
 }
 
 function teamSize(state) {
@@ -711,22 +729,32 @@ async function refresh() {
     }
 
     if (!cachedState) {
-      roleRevealEl.textContent = "Waiting for host to create a game.";
+      roleRevealEl.textContent = "等待房主创建游戏。";
       renderProposalTracker(null);
       renderProposalMatrix(null, []);
+      lastRenderedPhase = null;
+      lastTeamVotesCount = 0;
+      lastQuestVotesCount = 0;
+      lastProposalAttempts = 0;
+      lastLeaderIndex = -1;
       return;
     }
 
     if (cachedState.phase === "lobby") {
+      lastRenderedPhase = null;
+      lastTeamVotesCount = 0;
+      lastQuestVotesCount = 0;
+      lastProposalAttempts = 0;
+      lastLeaderIndex = -1;
       window.location.href = "/lobby";
       return;
     }
 
     if (cachedState) {
-      phaseValueEl.textContent = cachedState.phase;
+      phaseValueEl.textContent = phaseDisplayName(cachedState.phase);
       questValueEl.textContent = cachedState.quest_number;
       const player = cachedState.players.find((p) => p.id === playerId);
-      playerNameEl.textContent = player ? player.name : "Player";
+      playerNameEl.textContent = player ? player.name : "玩家";
       renderChat(cachedState.chat || [], cachedState.players || []);
       renderProposalTracker(cachedState);
       renderProposalMatrix(cachedState, cachedEvents);
@@ -741,16 +769,37 @@ async function refresh() {
     }
     // Use the private snapshot when available: the public state redacts the
     // viewer's own pending votes, which the action menu needs to detect.
-    renderActionMenu(cachedPrivate?.state || cachedState, cachedPrivate || {});
+    // Only re-render the action menu when critical state changes to avoid
+    // resetting user selections in dropdowns (e.g., team picker).
+    const stateForMenu = cachedPrivate?.state || cachedState;
+    const currentPhase = stateForMenu?.phase;
+    const currentTeamVotesCount = Object.keys(stateForMenu?.team_votes || {}).length;
+    const currentQuestVotesCount = Object.keys(stateForMenu?.quest_votes || {}).length;
+    const currentProposalAttempts = stateForMenu?.proposal_attempts || 0;
+    const currentLeaderIndex = stateForMenu?.leader_index ?? -1;
+    const phaseChanged = currentPhase !== lastRenderedPhase;
+    const votesChanged = currentTeamVotesCount !== lastTeamVotesCount ||
+                         currentQuestVotesCount !== lastQuestVotesCount;
+    const proposalChanged = currentProposalAttempts !== lastProposalAttempts ||
+                            currentLeaderIndex !== lastLeaderIndex;
+
+    if (phaseChanged || votesChanged || proposalChanged) {
+      lastRenderedPhase = currentPhase;
+      lastTeamVotesCount = currentTeamVotesCount;
+      lastQuestVotesCount = currentQuestVotesCount;
+      lastProposalAttempts = currentProposalAttempts;
+      lastLeaderIndex = currentLeaderIndex;
+      renderActionMenu(cachedPrivate?.state || cachedState, cachedPrivate || {});
+    }
     if (pending && pending.bot && pending.bot.length && !(pending.human && pending.human.length)) {
-      botStatusEl.textContent = `Bots are thinking… (${pending.bot.length} pending)`;
+      botStatusEl.textContent = `机器人思考中…（${pending.bot.length} 个待处理）`;
       botStatusEl.classList.remove("hidden");
     } else {
       botStatusEl.textContent = "";
       botStatusEl.classList.add("hidden");
     }
   } catch (err) {
-    roleRevealEl.textContent = "Unable to reach server.";
+    roleRevealEl.textContent = "无法连接服务器。";
   }
 }
 
